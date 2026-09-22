@@ -68,7 +68,7 @@ const DetailModal = ({ show, data, onClose }) => {
     const curSeasonMaxEp = curSeasonObj?.episode_count || (regularSeasons.length > 0 ? 0 : Math.ceil(totalEpisodes / totalSeasons));
 
     const handleBackdropClick = (e) => {
-        if (e.target === e.currentTarget || e.target.closest('.close-detail-btn')) {
+        if (e.target === e.currentTarget) {
             onClose();
         }
     };
@@ -116,7 +116,8 @@ const DetailModal = ({ show, data, onClose }) => {
     };
 
     const handleStepPlus = () => {
-        if (selectedEpisode < curSeasonMaxEp) {
+        const effectiveMax = curSeasonMaxEp > 0 ? curSeasonMaxEp : 30;
+        if (selectedEpisode < effectiveMax) {
             handleEpisodeChange(selectedEpisode + 1);
         } else {
             // Next season if available
@@ -131,6 +132,21 @@ const DetailModal = ({ show, data, onClose }) => {
                         currentEpisode: 1,
                         status: 'watching',
                         watched: false
+                    });
+                }
+            } else {
+                // Last episode of last season -> mark completed
+                const lastSeason = regularSeasons.length > 0 ? regularSeasons[regularSeasons.length - 1] : null;
+                const lastSeasonNum = lastSeason ? lastSeason.season_number : totalSeasons;
+                const lastMax = lastSeason ? (lastSeason.episode_count || 1) : effectiveMax;
+                setSelectedSeason(lastSeasonNum);
+                setSelectedEpisode(lastMax);
+                if (isInWatchlist) {
+                    updateSeriesProgress(data.id, {
+                        currentSeason: lastSeasonNum,
+                        currentEpisode: lastMax,
+                        status: 'completed',
+                        watched: true
                     });
                 }
             }
@@ -216,8 +232,10 @@ const DetailModal = ({ show, data, onClose }) => {
                 <div className="detail-content-wrapper">
                     <div className="detail-poster">
                         <img 
-                            src={getPosterUrl(data)} 
+                            src={getPosterUrl(data, 'w500')} 
                             alt={data.title || data.name || ''} 
+                            loading="lazy"
+                            decoding="async"
                             onError={handleImageError}
                         />
                     </div>
@@ -356,9 +374,11 @@ const DetailModal = ({ show, data, onClose }) => {
                                 providers.flatrate.map(p => (
                                     <img 
                                         key={p.provider_id} 
-                                        src={getPosterUrl(p.logo_path, 'original')} 
+                                        src={getPosterUrl(p.logo_path, 'w200')} 
                                         title={p.provider_name}
                                         alt={p.provider_name}
+                                        loading="lazy"
+                                        decoding="async"
                                         onError={handleImageError}
                                     />
                                 ))

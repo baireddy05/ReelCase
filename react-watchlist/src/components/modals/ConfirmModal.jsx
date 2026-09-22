@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Trash2, AlertTriangle, X } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 
 const ConfirmModal = ({ show, item, type, onConfirm, onCancel }) => {
     useEffect(() => {

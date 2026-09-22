@@ -120,7 +120,7 @@ const app = {
             const addBtn = e.target.closest('.add-to-list-btn');
             if (addBtn) {
                 if(!state.user) {
-                    ui.hideDetailModal();
+                    ui.hideDetailModal(true);
                     ui.showAuthModal();
                     return;
                 }

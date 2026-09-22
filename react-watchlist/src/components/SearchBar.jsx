@@ -18,9 +18,11 @@ const SearchBar = ({ onSelect }) => {
     }, []);
 
     useEffect(() => {
+        const controller = new AbortController();
         const timer = setTimeout(async () => {
-            if (query.trim().length > 2) {
-                const data = await tmdb.search(query);
+            const q = query.trim();
+            if (q.length >= 2) {
+                const data = await tmdb.search(q, { signal: controller.signal });
                 if (data && data.results) {
                     const validResults = data.results.filter(item => 
                         item.media_type === 'movie' || item.media_type === 'tv'
@@ -34,7 +36,7 @@ const SearchBar = ({ onSelect }) => {
             }
         }, 350);
 
-        return () => clearTimeout(timer);
+        return () => { clearTimeout(timer); controller.abort(); };
     }, [query]);
 
     const handleSelect = (item) => {
@@ -58,8 +60,8 @@ const SearchBar = ({ onSelect }) => {
             <div className={`search-results ${isActive && results.length > 0 ? 'active' : ''}`}>
                 <ul>
                     {results.map(item => (
-                        <li key={item.id} onClick={() => handleSelect(item)}>
-                            <img src={getPosterUrl(item)} alt="" loading="lazy" onError={handleImageError} />
+                        <li key={`${item.media_type}-${item.id}`} onClick={() => handleSelect(item)}>
+                            <img src={getPosterUrl(item, 'w200')} alt="" loading="lazy" onError={handleImageError} />
                             <div className="item-info">
                                 <div className="title">{item.title || item.name}</div>
                                 <div className="year">

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { getPosterUrl, handleImageError, getYear } from '../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../contexts/WatchlistContext';
 import { Eye, Trash2, CheckCircle2 } from 'lucide-react';
 
-const GridItem = ({ item, type, onClick }) => {
+const GridItem = memo(({ item, type, onClick }) => {
     const { requestDelete, toggleWatched } = useWatchlist();
 
     const handleRemove = (e) => {
@@ -22,11 +22,12 @@ const GridItem = ({ item, type, onClick }) => {
 
     return (
         <div className={`grid-item ${item.watched ? 'item-watched' : ''}`}>
-            <a className="poster-link" onClick={() => onClick(item)}>
+            <a className="poster-link" onClick={() => onClick(item, type)}>
                 <img 
-                    src={getPosterUrl(item)} 
+                    src={getPosterUrl(item, 'w200')} 
                     alt={item.title || ''} 
                     loading="lazy" 
+                    decoding="async"
                     onError={handleImageError}
                 />
                 {isSeries && item.watched && (
@@ -67,7 +68,9 @@ const GridItem = ({ item, type, onClick }) => {
             </div>
         </div>
     );
-};
+});
+
+GridItem.displayName = 'GridItem';
 
 export default GridItem;
 

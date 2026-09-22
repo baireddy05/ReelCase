@@ -1,8 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, LogIn, LogOut } from 'lucide-react';
-import logoSvg from '../assets/logo.svg';
-import logoPng from '../assets/logo.png';
+import { Moon, Sun, LogIn, LogOut } from 'lucide-react';
 
 const Header = ({ setShowAuthModal, isDarkMode, setIsDarkMode }) => {
     const { user, logout } = useAuth();
@@ -19,15 +17,18 @@ const Header = ({ setShowAuthModal, isDarkMode, setIsDarkMode }) => {
         <header>
             <div className="brand-logo">
                 <img 
-                    src={logoSvg} 
-                    alt="My Watchlist Logo" 
+                    src="/logo.svg" 
+                    alt="Reelcase logo" 
                     className="app-logo-img"
+                    width={38}
+                    height={38}
+                    fetchPriority="high"
                     onError={(e) => {
                         e.currentTarget.onerror = null;
-                        e.currentTarget.src = logoPng;
+                        e.currentTarget.src = '/logo.png';
                     }}
                 />
-                <h1>My Watchlist</h1>
+                <h1>Reelcase</h1>
             </div>
             <div className="header-actions">
                 <button 
@@ -35,14 +36,14 @@ const Header = ({ setShowAuthModal, isDarkMode, setIsDarkMode }) => {
                     onClick={() => setIsDarkMode(!isDarkMode)}
                     title="Toggle Dark Mode"
                 >
-                    <Moon size={20} />
+                    {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
                 {user ? (
-                    <button className="auth-btn outline desktop-only" onClick={logout}>
+                    <button className="auth-btn outline" onClick={logout}>
                         <LogOut size={16} style={{ marginRight: '8px' }} /> Logout
                     </button>
                 ) : (
-                    <button className="auth-btn outline desktop-only" onClick={() => setShowAuthModal(true)}>
+                    <button className="auth-btn outline" onClick={() => setShowAuthModal(true)}>
                         <LogIn size={16} style={{ marginRight: '8px' }} /> Login
                     </button>
                 )}

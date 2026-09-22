@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { config, tmdb, getPosterUrl, handleImageError, getYear } from '../services/tmdb';
+import React, { useState, useEffect, useMemo, memo } from 'react';
+import { tmdb, getPosterUrl, handleImageError, getYear } from '../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../contexts/WatchlistContext';
 import { Plus, Minus, Check, Trash2, Sliders, CheckCircle2 } from 'lucide-react';
 
-const SeriesProgressCard = ({ item, onClick }) => {
+const SeriesProgressCard = memo(({ item, onClick }) => {
     const { incrementEpisode, decrementEpisode, updateSeriesProgress, requestDelete } = useWatchlist();
     const [isEditing, setIsEditing] = useState(false);
     const [selectedSeason, setSelectedSeason] = useState(item.currentSeason || 1);
-    const [selectedEpisode, setSelectedEpisode] = useState(item.currentEpisode || 1);
+    const [selectedEpisode, setSelectedEpisode] = useState(item.currentEpisode ?? 0);
 
     // Auto-fetch missing TMDb metadata for legacy series items
     useEffect(() => {
@@ -36,10 +36,10 @@ const SeriesProgressCard = ({ item, onClick }) => {
 
     useEffect(() => {
         setSelectedSeason(item.currentSeason || 1);
-        setSelectedEpisode(item.currentEpisode || 1);
+        setSelectedEpisode(item.currentEpisode ?? 0);
     }, [item.currentSeason, item.currentEpisode]);
 
-    const progress = calculateSeriesProgress(item);
+    const progress = useMemo(() => calculateSeriesProgress(item), [item]);
     const seasonsDetail = item.seasons_detail || [];
     
     // Find current season info
@@ -75,10 +75,14 @@ const SeriesProgressCard = ({ item, onClick }) => {
 
     const handleMarkCompleted = (e) => {
         e.stopPropagation();
+        const lastSeason = seasonsDetail.length > 0 ? seasonsDetail[seasonsDetail.length - 1] : null;
+        const lastSeasonNum = lastSeason ? lastSeason.season_number : progress.totalSeasons;
+        const lastEpCount = lastSeason ? (lastSeason.episode_count || 1) : progress.totalCount;
         updateSeriesProgress(item.id, {
+            currentSeason: lastSeasonNum,
+            currentEpisode: lastEpCount,
             status: 'completed',
-            watched: true,
-            currentEpisode: progress.totalCount
+            watched: true
         });
     };
 
@@ -89,11 +93,12 @@ const SeriesProgressCard = ({ item, onClick }) => {
 
     return (
         <div className="watching-card">
-            <div className="watching-poster-wrapper" onClick={() => onClick(item)}>
+            <div className="watching-poster-wrapper" onClick={() => onClick(item, 'series')}>
                 <img 
-                    src={getPosterUrl(item)} 
+                    src={getPosterUrl(item, 'w200')} 
                     alt={item.title || ''} 
-                    loading="lazy" 
+                    loading="lazy"
+                    decoding="async"
                     className="watching-poster"
                     onError={handleImageError}
                 />
@@ -105,7 +110,7 @@ const SeriesProgressCard = ({ item, onClick }) => {
             <div className="watching-details">
                 <div className="watching-header">
                     <div>
-                        <h3 className="watching-title" onClick={() => onClick(item)} title={item.title}>
+                        <h3 className="watching-title" onClick={() => onClick(item, 'series')} title={item.title}>
                             {item.title}
                         </h3>
                         <div className="watching-meta">
@@ -243,6 +248,8 @@ const SeriesProgressCard = ({ item, onClick }) => {
             </div>
         </div>
     );
-};
+});
+
+SeriesProgressCard.displayName = 'SeriesProgressCard';
 
 export default SeriesProgressCard;

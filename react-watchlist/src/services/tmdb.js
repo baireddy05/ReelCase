@@ -1,7 +1,7 @@
 export const SVG_PLACEHOLDER = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="750" viewBox="0 0 500 750" fill="%23181824"><rect width="500" height="750" fill="%2312121a"/><rect x="30" y="40" width="440" height="670" rx="16" fill="%231c1c28" stroke="%232e2e42" stroke-width="2"/><circle cx="250" cy="310" r="44" fill="%232a2a3e"/><polygon points="242,295 268,310 242,325" fill="%23818cf8"/><text x="250" y="415" dominant-baseline="middle" text-anchor="middle" fill="%23e2e8f0" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="22" font-weight="700">No Poster</text><text x="250" y="450" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="15">Image Unavailable</text></svg>`;
 
 export const config = {
-    tmdbApiKey: 'a6eb2bf522ddc0f66b5a3433b55d22a5',
+    tmdbApiKey: import.meta.env.VITE_TMDB_API_KEY || 'a6eb2bf522ddc0f66b5a3433b55d22a5',
     tmdbBaseUrl: 'https://api.themoviedb.org/3',
     tmdbImageBaseUrl: 'https://image.tmdb.org/t/p/w500',
     placeholder: SVG_PLACEHOLDER,
@@ -80,22 +80,33 @@ export const getYear = (dateOrItem) => {
 };
 
 const cache = new Map();
+const MAX_CACHE_ENTRIES = 120;
+
+const setCache = (key, value) => {
+    if (cache.has(key)) cache.delete(key); // refresh LRU order
+    cache.set(key, value);
+    if (cache.size > MAX_CACHE_ENTRIES) {
+        const oldestKey = cache.keys().next().value;
+        cache.delete(oldestKey);
+    }
+};
 
 export const tmdb = {
-    async fetch(endpoint, params = '') {
+    async fetch(endpoint, params = '', options = {}) {
         try {
             const url = `${config.tmdbBaseUrl}${endpoint}?api_key=${config.tmdbApiKey}${params ? '&' + params : ''}`;
-            const response = await fetch(url);
+            const response = await fetch(url, { signal: options.signal });
             if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
             return await response.json();
         } catch (error) {
+            if (error?.name === 'AbortError') return null;
             console.error("API Fetch Error:", error);
             return null;
         }
     },
     
-    search(query) {
-        return this.fetch(`/search/multi`, `query=${encodeURIComponent(query)}`);
+    search(query, options = {}) {
+        return this.fetch(`/search/multi`, `query=${encodeURIComponent(query)}`, options);
     },
     
     async getDetails(id, type) {
@@ -108,7 +119,7 @@ export const tmdb = {
         
         const data = await this.fetch(`/${endpointType}/${id}`, `append_to_response=watch/providers,external_ids`);
         if (data) {
-            cache.set(cacheKey, data);
+            setCache(cacheKey, data);
         }
         return data;
     },
@@ -120,7 +131,7 @@ export const tmdb = {
         }
         const data = await this.fetch(`/tv/${tvId}/season/${seasonNumber}`);
         if (data) {
-            cache.set(cacheKey, data);
+            setCache(cacheKey, data);
         }
         return data;
     }

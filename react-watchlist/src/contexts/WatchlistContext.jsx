@@ -83,12 +83,24 @@ export const WatchlistProvider = ({ children }) => {
             return;
         }
 
+        // Sync any offline edits saved while Firestore writes failed
+        const offlineRaw = localStorage.getItem('offline_watchlist');
+        if (offlineRaw) {
+            try {
+                const parsed = JSON.parse(offlineRaw);
+                if (parsed && (parsed.movies?.length > 0 || parsed.series?.length > 0)) {
+                    setDoc(doc(db, "watchlists", user.uid), parsed).catch(() => {});
+                }
+                localStorage.removeItem('offline_watchlist');
+            } catch { localStorage.removeItem('offline_watchlist'); }
+        }
+
         const docRef = doc(db, "watchlists", user.uid);
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                const data = docSnap.data();
-                const rawMovies = data.movies || [];
-                const rawSeries = data.series || [];
+                const data = docSnap.data() || {};
+                const rawMovies = Array.isArray(data.movies) ? data.movies : [];
+                const rawSeries = Array.isArray(data.series) ? data.series : [];
                 setWatchlist({
                     movies: rawMovies.map(normalizeItem),
                     series: rawSeries.map(normalizeItem)
@@ -246,11 +258,24 @@ export const WatchlistProvider = ({ children }) => {
                 } else {
                     // Series toggle
                     const willBeWatched = !i.watched;
+                    if (!willBeWatched) {
+                        return {
+                            ...i,
+                            watched: false,
+                            status: 'plan_to_watch',
+                            currentEpisode: 0
+                        };
+                    }
+                    const seasons = i.seasons_detail || [];
+                    const lastSeason = seasons.length > 0 ? seasons[seasons.length - 1] : null;
+                    const lastSeasonNum = lastSeason ? lastSeason.season_number : (i.total_seasons || i.currentSeason || 1);
+                    const lastEpCount = lastSeason ? (lastSeason.episode_count || 1) : (i.total_episodes || 1);
                     return {
                         ...i,
-                        watched: willBeWatched,
-                        status: willBeWatched ? 'completed' : 'plan_to_watch',
-                        currentEpisode: willBeWatched ? (i.total_episodes || i.currentEpisode || 1) : 0
+                        watched: true,
+                        status: 'completed',
+                        currentSeason: lastSeasonNum,
+                        currentEpisode: lastEpCount
                     };
                 }
             })

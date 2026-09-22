@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import SearchBar from './components/SearchBar';
 import GridItem from './components/GridItem';
 import SeriesProgressCard from './components/SeriesProgressCard';
-import AuthModal from './components/modals/AuthModal';
-import DetailModal from './components/modals/DetailModal';
-import ConfirmModal from './components/modals/ConfirmModal';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
 import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles } from 'lucide-react';
+
+const AuthModal = lazy(() => import('./components/modals/AuthModal'));
+const DetailModal = lazy(() => import('./components/modals/DetailModal'));
+const ConfirmModal = lazy(() => import('./components/modals/ConfirmModal'));
 
 function App() {
     const { user } = useAuth();
@@ -43,56 +44,60 @@ function App() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [showDetailModal, showAuthModal]);
 
-    const handleSelectSearchItem = async (id, type) => {
+    const handleSelectSearchItem = useCallback(async (id, type) => {
         const data = await tmdb.getDetails(id, type);
+        if (!data) return;
         setDetailData(data);
         setShowDetailModal(true);
         history.pushState({ modal: 'detail' }, '');
-    };
+    }, []);
 
-    const handleGridItemClick = async (item) => {
-        const type = activeTab === 'movies' ? 'movie' : 'series';
+    const handleGridItemClick = useCallback(async (item, forcedType) => {
+        const type = forcedType || 'movie';
         const data = await tmdb.getDetails(item.id, type);
+        if (!data) return;
         setDetailData(data);
         setShowDetailModal(true);
         history.pushState({ modal: 'detail' }, '');
-    };
+    }, []);
 
-    const handleCloseDetail = () => {
+    const handleCloseDetail = useCallback(() => {
         setShowDetailModal(false);
         if (history.state && history.state.modal === 'detail') {
             history.back();
         }
-    };
+    }, []);
 
-    const handleCloseAuth = () => {
+    const handleCloseAuth = useCallback(() => {
         setShowAuthModal(false);
         if (history.state && history.state.modal === 'auth') {
             history.back();
         }
-    };
+    }, []);
 
-    const openAuthModal = () => {
+    const openAuthModal = useCallback(() => {
         setShowAuthModal(true);
         history.pushState({ modal: 'auth' }, '');
-    };
+    }, []);
 
-    // Series categorization
-    const watchingSeries = watchlist.series.filter(s => 
-        !s.watched && (s.status === 'watching' || (s.currentEpisode && s.currentEpisode > 0))
-    );
-    
-    const planToWatchSeries = watchlist.series.filter(s => 
-        !s.watched && s.status !== 'watching' && (!s.currentEpisode || s.currentEpisode === 0)
-    );
-
-    const completedSeries = watchlist.series.filter(s => 
-        s.watched === true || s.status === 'completed'
-    );
-
-    // Movies categorization
-    const unwatchedMovies = watchlist.movies.filter(m => !m.watched);
-    const watchedMovies = watchlist.movies.filter(m => m.watched);
+    // Series categorization (mutually exclusive, memoized: single O(n) pass each)
+    const { watchingSeries, planToWatchSeries, completedSeries, unwatchedMovies, watchedMovies } = useMemo(() => {
+        const watching = [];
+        const plan = [];
+        const completed = [];
+        for (const s of watchlist.series) {
+            if (s.watched === true || s.status === 'completed') completed.push(s);
+            else if (s.status === 'watching' || (s.currentEpisode && s.currentEpisode > 0)) watching.push(s);
+            else plan.push(s);
+        }
+        const unwatched = [];
+        const watched = [];
+        for (const m of watchlist.movies) {
+            if (m.watched) watched.push(m);
+            else unwatched.push(m);
+        }
+        return { watchingSeries: watching, planToWatchSeries: plan, completedSeries: completed, unwatchedMovies: unwatched, watchedMovies: watched };
+    }, [watchlist]);
 
     return (
         <div className="container">
@@ -320,15 +325,17 @@ function App() {
 
             <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
             
-            <AuthModal show={showAuthModal} onClose={handleCloseAuth} />
-            <DetailModal show={showDetailModal} data={detailData} onClose={handleCloseDetail} />
-            <ConfirmModal 
-                show={deleteModalState?.show}
-                item={deleteModalState?.item}
-                type={deleteModalState?.type}
-                onConfirm={confirmDelete}
-                onCancel={cancelDelete}
-            />
+            <Suspense fallback={null}>
+                <AuthModal show={showAuthModal} onClose={handleCloseAuth} />
+                <DetailModal show={showDetailModal} data={detailData} onClose={handleCloseDetail} />
+                <ConfirmModal 
+                    show={deleteModalState?.show}
+                    item={deleteModalState?.item}
+                    type={deleteModalState?.type}
+                    onConfirm={confirmDelete}
+                    onCancel={cancelDelete}
+                />
+            </Suspense>
         </div>
     );
 }

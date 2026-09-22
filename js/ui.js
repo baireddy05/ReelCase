@@ -240,7 +240,9 @@ export const ui = {
         if(state.user) {
             dom.loginBtn.style.display = 'none';
             dom.logoutBtn.style.display = 'block';
-            this.hideAuthModal();
+            if (dom.authModalOverlay.classList.contains('show')) {
+                this.hideAuthModal();
+            }
         } else {
             dom.loginBtn.style.display = 'block';
             dom.logoutBtn.style.display = 'none';

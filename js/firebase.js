@@ -115,7 +115,11 @@ export const fb = {
         const docRef = doc(db, "watchlists", uid);
         this.unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                state.watchlist = docSnap.data();
+                const data = docSnap.data() || {};
+                state.watchlist = {
+                    movies: Array.isArray(data.movies) ? data.movies : [],
+                    series: Array.isArray(data.series) ? data.series : []
+                };
             } else {
                 // Initialize empty watchlist in Firestore
                 setDoc(docRef, { movies: [], series: [] });
