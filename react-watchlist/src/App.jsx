@@ -98,11 +98,56 @@ function App() {
     }, []);
 
     const exportLibrary = useCallback(() => {
-        const blob = new Blob([JSON.stringify(watchlist, null, 2)], { type: 'application/json' });
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const yearOf = (i) => String(i.year || i.release_date || i.first_air_date || '').slice(0, 4);
+        const posterOf = (i) => {
+            const p = i.poster_path || i.poster || '';
+            if (!p) return '';
+            const path = String(p).startsWith('http') ? p : `https://image.tmdb.org/t/p/w200${String(p).startsWith('/') ? p : '/' + p}`;
+            return path;
+        };
+        const card = (i, extra = '') => `
+            <div class="card">
+                ${posterOf(i) ? `<img loading="lazy" src="${posterOf(i)}" alt="">` : `<div class="noimg">Reelcase</div>`}
+                <div class="t">${esc(i.title || 'Untitled')}</div>
+                <div class="y">${esc(yearOf(i))}${extra ? ` &bull; ${esc(extra)}` : ''}</div>
+            </div>`;
+        const seriesExtra = (s) => s.watched ? 'Completed' : (s.currentEpisode > 0 ? `S${s.currentSeason || 1} E${s.currentEpisode}` : 'Plan to watch');
+        const section = (title, inner) => inner ? `<h2>${title}</h2><div class="grid">${inner}</div>` : '';
+
+        const movies = watchlist.movies;
+        const series = watchlist.series;
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reelcase Library</title>
+<style>
+body{font-family:Inter,-apple-system,'Segoe UI',Roboto,sans-serif;margin:0;background:#fafafa;color:#1a1a1a}
+.wrap{max-width:1000px;margin:0 auto;padding:32px 20px}
+h1{font-size:1.8rem;letter-spacing:-.02em;margin:0}
+.sub{color:#737373;font-size:.9rem;margin:6px 0 24px}
+h2{font-size:1.15rem;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e5e5e5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden}
+.card img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block}
+.noimg{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;color:#a3a3a3;font-size:.8rem;background:#f5f5f5}
+.t{font-size:.82rem;font-weight:700;padding:8px 8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.y{font-size:.74rem;color:#737373;padding:2px 8px 10px}
+@media(prefers-color-scheme:dark){body{background:#0a0a0a;color:#e5e5e5}.card{background:#141414;border-color:#262626}.noimg{background:#1a1a1a}h2{border-color:#262626}.sub{color:#a3a3a3}.y{color:#a3a3a3}}
+</style></head><body><div class="wrap">
+<h1>Reelcase Library</h1>
+<p class="sub">${movies.length} movies &bull; ${series.length} series &bull; exported ${new Date().toLocaleDateString()}</p>
+${section(`Movies to Watch (${movies.filter(m => !m.watched).length})`, movies.filter(m => !m.watched).map(m => card(m)).join(''))}
+${section(`Watched Movies (${movies.filter(m => m.watched).length})`, movies.filter(m => m.watched).map(m => card(m)).join(''))}
+${section(`Currently Watching (${series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).length})`, series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).map(s => card(s, seriesExtra(s))).join(''))}
+${section(`Plan to Watch (${series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).length})`, series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).map(s => card(s, seriesExtra(s))).join(''))}
+${section(`Completed Series (${series.filter(s => s.watched || s.status === 'completed').length})`, series.filter(s => s.watched || s.status === 'completed').map(s => card(s, seriesExtra(s))).join(''))}
+</div></body></html>`;
+
+        const blob = new Blob([html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'reelcase-library.json';
+        a.download = 'reelcase-library.html';
         a.click();
         URL.revokeObjectURL(url);
     }, [watchlist]);
@@ -226,7 +271,7 @@ function App() {
                                         <option value="newest">Newest</option>
                                         <option value="oldest">Oldest</option>
                                     </select>
-                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as JSON">
+                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as a styled HTML page">
                                         <Download size={15} /> Export
                                     </button>
                                 </div>
@@ -313,7 +358,7 @@ function App() {
                                         <option value="newest">Newest</option>
                                         <option value="oldest">Oldest</option>
                                     </select>
-                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as JSON">
+                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as a styled HTML page">
                                         <Download size={15} /> Export
                                     </button>
                                 </div>
