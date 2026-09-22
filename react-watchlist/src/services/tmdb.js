@@ -108,6 +108,14 @@ export const tmdb = {
     search(query, options = {}) {
         return this.fetch(`/search/multi`, `query=${encodeURIComponent(query)}`, options);
     },
+
+    async trending(mediaType = 'all', window = 'week') {
+        const cacheKey = `trending-${mediaType}-${window}`;
+        if (cache.has(cacheKey)) return cache.get(cacheKey);
+        const data = await this.fetch(`/trending/${mediaType}/${window}`);
+        if (data?.results) setCache(cacheKey, data);
+        return data;
+    },
     
     async getDetails(id, type) {
         const endpointType = type === 'series' ? 'tv' : type;

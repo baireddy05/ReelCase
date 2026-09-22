@@ -1,51 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e1b4b" />
-      <stop offset="50%" stop-color="#312e81" />
-      <stop offset="100%" stop-color="#4c1d95" />
+    <linearGradient id="rc-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1026"/>
+      <stop offset=".55" stop-color="#312e81"/>
+      <stop offset="1" stop-color="#6d28d9"/>
     </linearGradient>
-    
-    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#60a5fa" />
-      <stop offset="50%" stop-color="#a855f7" />
-      <stop offset="100%" stop-color="#ec4899" />
+    <linearGradient id="rc-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset=".5" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#f472b6"/>
     </linearGradient>
-
-    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8" />
-      <stop offset="100%" stop-color="#c084fc" stop-opacity="0.2" />
-    </linearGradient>
-
-    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
-    </filter>
-
-    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="rc-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".45"/>
     </filter>
   </defs>
-
-  <!-- Background Base -->
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bgGrad)" filter="url(#dropShadow)" />
-  
-  <!-- Subtle Inner Border -->
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="none" stroke="url(#accentGrad)" stroke-width="6" stroke-opacity="0.5" />
-
-  <!-- Outer Reel Ring Marks -->
-  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#accentGrad)" stroke-width="8" stroke-dasharray="16 12" opacity="0.35" />
-
-  <!-- Stylized "M" + Film Frame Emblem -->
-  <!-- Left Leg of M -->
-  <path d="M 160 340 V 172 L 256 268 L 352 172 V 340" fill="none" stroke="url(#accentGrad)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow)" />
-  
-  <!-- Central Glowing Play Triangle -->
-  <polygon points="232,230 296,268 232,306" fill="#ffffff" filter="url(#neonGlow)" />
-
-  <!-- Corner Star / Sparkle Accent -->
-  <path d="M 370 125 C 370 140 380 150 395 150 C 380 150 370 160 370 175 C 370 160 360 150 345 150 C 360 150 370 140 370 125 Z" fill="#38bdf8" />
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="url(#rc-bg)" filter="url(#rc-shadow)"/>
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="none" stroke="url(#rc-accent)" stroke-width="7" stroke-opacity=".55"/>
+  <circle cx="256" cy="248" r="124" fill="none" stroke="url(#rc-accent)" stroke-width="26"/>
+  <g fill="#0b1026">
+    <circle cx="256" cy="158" r="26"/>
+    <circle cx="334" cy="203" r="26"/>
+    <circle cx="334" cy="293" r="26"/>
+    <circle cx="256" cy="338" r="26"/>
+    <circle cx="178" cy="293" r="26"/>
+    <circle cx="178" cy="203" r="26"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="5">
+    <circle cx="256" cy="158" r="26"/>
+    <circle cx="334" cy="203" r="26"/>
+    <circle cx="334" cy="293" r="26"/>
+    <circle cx="256" cy="338" r="26"/>
+    <circle cx="178" cy="293" r="26"/>
+    <circle cx="178" cy="203" r="26"/>
+  </g>
+  <path d="M238 198 L302 248 L238 298 Z" fill="#fff" stroke="#fff" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M386 104c0 14 8 22 22 22-14 0-22 8-22 22 0-14-8-22-22-22 14 0 22-8 22-22z" fill="#f0abfc"/>
+  <rect x="148" y="392" width="216" height="26" rx="13" fill="url(#rc-accent)" opacity=".85"/>
 </svg>

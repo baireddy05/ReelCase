@@ -4,6 +4,9 @@ import BottomNav from './components/BottomNav';
 import SearchBar from './components/SearchBar';
 import GridItem from './components/GridItem';
 import SeriesProgressCard from './components/SeriesProgressCard';
+import StatsBar from './components/StatsBar';
+import DiscoverRow from './components/DiscoverRow';
+import Toaster from './components/Toaster';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
@@ -109,6 +112,17 @@ function App() {
 
             <SearchBar onSelect={handleSelectSearchItem} />
 
+            {user && (
+                <StatsBar
+                    movies={watchlist.movies}
+                    series={watchlist.series}
+                    watchingCount={watchingSeries.length}
+                    completedCount={completedSeries.length}
+                />
+            )}
+
+            {user && <DiscoverRow onSelect={handleSelectSearchItem} />}
+
             <div className="tabs desktop-only">
                 <button 
                     className={`tab-button ${activeTab === 'movies' ? 'active' : ''}`}
@@ -127,7 +141,9 @@ function App() {
             <main>
                 {!user ? (
                     <div className="auth-prompt">
-                        <h2>Please login to view your watchlist</h2>
+                        <img src="/logo.svg" alt="Reelcase logo" className="auth-prompt-logo" width={72} height={72} />
+                        <h2>Welcome to Reelcase</h2>
+                        <p className="empty-hint">Please login to view your watchlist</p>
                         <button className="auth-btn email-btn" onClick={openAuthModal}>
                             Login
                         </button>
@@ -324,6 +340,7 @@ function App() {
             </main>
 
             <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+            <Toaster />
             
             <Suspense fallback={null}>
                 <AuthModal show={showAuthModal} onClose={handleCloseAuth} />

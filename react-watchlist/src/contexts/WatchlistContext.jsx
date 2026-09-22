@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { db, doc, onSnapshot, setDoc } from '../services/firebase';
+import { notify } from '../components/Toaster';
 
 const WatchlistContext = createContext();
 
@@ -228,12 +229,14 @@ export const WatchlistProvider = ({ children }) => {
 
         setWatchlist(updatedList);
         await saveWatchlistData(updatedList);
+        notify(`Added “${newItem.title || 'title'}” to Reelcase`);
         return true;
     };
 
     const removeFromWatchlist = async (id, type) => {
         if (!user) return;
         const listType = type === 'movie' ? 'movies' : 'series';
+        const removed = watchlist[listType].find(i => i.id === id);
         
         const updatedList = {
             ...watchlist,
@@ -242,6 +245,7 @@ export const WatchlistProvider = ({ children }) => {
 
         setWatchlist(updatedList);
         await saveWatchlistData(updatedList);
+        notify(`Removed “${removed?.title || 'title'}” from Reelcase`);
     };
 
     const toggleWatched = async (id, type) => {
