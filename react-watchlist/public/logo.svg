@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect x="32" y="32" width="448" height="448" rx="116" fill="#111111"/>
-  <rect x="32" y="32" width="448" height="448" rx="116" fill="none" stroke="#111111" stroke-width="7"/>
-  <circle cx="256" cy="248" r="124" fill="none" stroke="#fafafa" stroke-width="26"/>
-  <g fill="#111111">
-    <circle cx="256" cy="158" r="26"/>
-    <circle cx="334" cy="203" r="26"/>
-    <circle cx="334" cy="293" r="26"/>
-    <circle cx="256" cy="338" r="26"/>
-    <circle cx="178" cy="293" r="26"/>
-    <circle cx="178" cy="203" r="26"/>
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="#14161c"/>
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="none" stroke="#2a2f3d" stroke-width="4"/>
+  <circle cx="256" cy="248" r="124" fill="none" stroke="#eceef2" stroke-width="24"/>
+  <g fill="#14161c">
+    <circle cx="256" cy="158" r="25"/>
+    <circle cx="334" cy="203" r="25"/>
+    <circle cx="334" cy="293" r="25"/>
+    <circle cx="256" cy="338" r="25"/>
+    <circle cx="178" cy="293" r="25"/>
+    <circle cx="178" cy="203" r="25"/>
   </g>
-  <path d="M238 198 L302 248 L238 298 Z" fill="#fafafa" stroke="#fafafa" stroke-width="14" stroke-linejoin="round"/>
-  <rect x="148" y="392" width="216" height="26" rx="13" fill="#fafafa" opacity=".9"/>
+  <path d="M240 200 L300 248 L240 296 Z" fill="#d9a441" stroke="#d9a441" stroke-width="14" stroke-linejoin="round"/>
+  <rect x="148" y="392" width="216" height="22" rx="11" fill="#d9a441" opacity=".85"/>
 </svg>

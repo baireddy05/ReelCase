@@ -23,7 +23,7 @@ function App() {
     const [seriesFilter, setSeriesFilter] = useState('all'); // 'all' | 'watching' | 'plan' | 'completed'
     const [moviesFilter, setMoviesFilter] = useState('all'); // 'all' | 'unwatched' | 'watched'
     const [isDarkMode, setIsDarkMode] = useState(
-        localStorage.getItem('isDarkMode') === 'true'
+        () => localStorage.getItem('isDarkMode') !== 'false'
     );
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [detailData, setDetailData] = useState(null);
