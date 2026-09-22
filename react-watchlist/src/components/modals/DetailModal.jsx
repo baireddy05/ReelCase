@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +12,39 @@ const DetailModal = ({ show, data, onClose }) => {
     const [selectedEpisode, setSelectedEpisode] = useState(0);
     const [cast, setCast] = useState([]);
     const [trailerKey, setTrailerKey] = useState(null);
+    const castRef = useRef(null);
+    const castDrag = useRef({ down: false, startX: 0, startScroll: 0, moved: false });
+
+    // Horizontal wheel + drag-to-scroll for the cast strip
+    const onCastWheel = useCallback((e) => {
+        const el = castRef.current;
+        if (!el) return;
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.deltaY !== 0) {
+            const atStart = el.scrollLeft <= 0 && e.deltaY < 0;
+            const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaY > 0;
+            if (!atStart && !atEnd) {
+                e.preventDefault();
+                el.scrollBy({ left: e.deltaY, behavior: 'auto' });
+            }
+        }
+    }, []);
+    const onCastPointerDown = (e) => {
+        const el = castRef.current;
+        if (!el) return;
+        castDrag.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
+    };
+    const onCastPointerMove = (e) => {
+        const d = castDrag.current;
+        const el = castRef.current;
+        if (!d.down || !el) return;
+        const dx = e.clientX - d.startX;
+        if (Math.abs(dx) > 6) d.moved = true;
+        if (d.moved) el.scrollLeft = d.startScroll - dx;
+    };
+    const endCastDrag = () => { castDrag.current.down = false; };
+    const onCastClick = (e) => {
+        if (castDrag.current.moved) { e.preventDefault(); castDrag.current.moved = false; }
+    };
 
     const isMovie = Boolean(data?.title);
     const type = isMovie ? 'movie' : 'series';
@@ -481,7 +514,15 @@ const DetailModal = ({ show, data, onClose }) => {
                         {cast.length > 0 && (
                             <>
                                 <h2>Top Cast</h2>
-                                <div className="cast-row">
+                                <div
+                                    className="cast-row"
+                                    ref={castRef}
+                                    onWheel={onCastWheel}
+                                    onPointerDown={onCastPointerDown}
+                                    onPointerMove={onCastPointerMove}
+                                    onPointerUp={endCastDrag}
+                                    onPointerLeave={endCastDrag}
+                                >
                                     {cast.map(person => (
                                         <a
                                             key={person.cast_id || person.credit_id}
@@ -490,6 +531,7 @@ const DetailModal = ({ show, data, onClose }) => {
                                             href={`https://www.google.com/search?q=${encodeURIComponent(person.name + ' actor')}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
+                                            onClick={onCastClick}
                                         >
                                             <img
                                                 src={person.profile_path ? getPosterUrl(person.profile_path, 'w200') : getPosterUrl(null)}

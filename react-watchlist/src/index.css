@@ -1633,7 +1633,8 @@ body .status-pill.active { background: var(--text-color); color: var(--bg-color)
 body .modal-select, body .edit-select { border-radius: 8px; transition: border-color .2s, box-shadow .2s; }
 body .modal-select:focus, body .edit-select:focus { box-shadow: var(--ring); border-color: var(--accent-color); }
 body .modal-progress-section { background: var(--container-bg); }
-body .cast-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+body .cast-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; cursor: grab; }
+body .cast-row:active { cursor: grabbing; }
 body .cast-row::-webkit-scrollbar { display: none; }
 body .cast-card { flex: 0 0 80px; text-align: center; text-decoration: none; color: inherit; border-radius: 10px; transition: transform .2s var(--ease-out); }
 body .cast-card:hover { transform: translateY(-2px); }
