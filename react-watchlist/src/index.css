@@ -1415,7 +1415,12 @@ body.dark-mode .close-detail-btn { background: rgba(255,255,255,0.1); }
 .discover-row { margin-bottom: 24px; }
 .discover-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .discover-header h2 { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; color: var(--heading-color); }
-.discover-scroll { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 12px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.discover-controls { display: flex; align-items: center; gap: 6px; }
+.discover-arrow { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--container-bg); color: var(--text-color); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; }
+.discover-arrow:hover:not(:disabled) { border-color: var(--accent-color); color: var(--accent-color); }
+.discover-arrow:disabled { opacity: .3; cursor: default; }
+.discover-scroll { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 12px; scroll-snap-type: x proximity; scrollbar-width: none; cursor: grab; }
+.discover-scroll:active { cursor: grabbing; }
 .discover-scroll::-webkit-scrollbar { display: none; }
 .discover-card { flex: 0 0 128px; background: var(--container-bg); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; cursor: pointer; padding: 0; transition: transform .2s ease, box-shadow .2s ease; scroll-snap-align: start; box-shadow: 0 4px 12px var(--shadow-color); }
 .discover-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px var(--shadow-hover); }
