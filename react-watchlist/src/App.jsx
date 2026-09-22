@@ -10,7 +10,7 @@ import Toaster from './components/Toaster';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
-import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles, Compass } from 'lucide-react';
+import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles, Compass, Download } from 'lucide-react';
 
 const AuthModal = lazy(() => import('./components/modals/AuthModal'));
 const DetailModal = lazy(() => import('./components/modals/DetailModal'));
@@ -28,10 +28,24 @@ function App() {
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [detailData, setDetailData] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [sortBy, setSortBy] = useState('added'); // added | title | newest | oldest
 
     useEffect(() => {
         localStorage.setItem('isDarkMode', isDarkMode);
     }, [isDarkMode]);
+
+    // Press "/" to jump to search
+    useEffect(() => {
+        const onKey = (e) => {
+            const tag = document.activeElement?.tagName;
+            if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                e.preventDefault();
+                document.getElementById('searchInput')?.focus();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     // Handle History API for Modals
     useEffect(() => {
@@ -83,6 +97,26 @@ function App() {
         history.pushState({ modal: 'auth' }, '');
     }, []);
 
+    const exportLibrary = useCallback(() => {
+        const blob = new Blob([JSON.stringify(watchlist, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'reelcase-library.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [watchlist]);
+
+    const sortItems = useCallback((items) => {
+        const arr = [...items];
+        if (sortBy === 'title') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        else if (sortBy === 'newest' || sortBy === 'oldest') {
+            const yearOf = (i) => parseInt(String(i.year || i.release_date || i.first_air_date || '0').slice(0, 4)) || 0;
+            arr.sort((a, b) => sortBy === 'newest' ? yearOf(b) - yearOf(a) : yearOf(a) - yearOf(b));
+        }
+        return arr;
+    }, [sortBy]);
+
     // Series categorization (mutually exclusive, memoized: single O(n) pass each)
     const { watchingSeries, planToWatchSeries, completedSeries, unwatchedMovies, watchedMovies } = useMemo(() => {
         const watching = [];
@@ -99,8 +133,9 @@ function App() {
             if (m.watched) watched.push(m);
             else unwatched.push(m);
         }
-        return { watchingSeries: watching, planToWatchSeries: plan, completedSeries: completed, unwatchedMovies: unwatched, watchedMovies: watched };
-    }, [watchlist]);
+        const sort = (arr) => sortItems(arr);
+        return { watchingSeries: sort(watching), planToWatchSeries: sort(plan), completedSeries: sort(completed), unwatchedMovies: sort(unwatched), watchedMovies: sort(watched) };
+    }, [watchlist, sortItems]);
 
     return (
         <div className="container">
@@ -163,6 +198,7 @@ function App() {
                         {/* MOVIES TAB */}
                         <div className={`bucket-list ${activeTab === 'movies' ? 'active' : ''}`}>
                             {watchlist.movies.length > 0 && (
+                                <div className="toolbar-row">
                                 <div className="sub-filters-container">
                                     <button 
                                         className={`sub-filter-pill ${moviesFilter === 'all' ? 'active' : ''}`}
@@ -182,6 +218,18 @@ function App() {
                                     >
                                         Watched ({watchedMovies.length})
                                     </button>
+                                </div>
+                                <div className="toolbar-actions">
+                                    <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort items">
+                                        <option value="added">Recently added</option>
+                                        <option value="title">Title A–Z</option>
+                                        <option value="newest">Newest</option>
+                                        <option value="oldest">Oldest</option>
+                                    </select>
+                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as JSON">
+                                        <Download size={15} /> Export
+                                    </button>
+                                </div>
                                 </div>
                             )}
 
@@ -228,6 +276,7 @@ function App() {
                         {/* SERIES TAB */}
                         <div className={`bucket-list ${activeTab === 'series' ? 'active' : ''}`}>
                             {watchlist.series.length > 0 && (
+                                <div className="toolbar-row">
                                 <div className="sub-filters-container">
                                     <button 
                                         className={`sub-filter-pill ${seriesFilter === 'all' ? 'active' : ''}`}
@@ -256,6 +305,18 @@ function App() {
                                         <CheckCircle2 size={15} style={{ verticalAlign: 'text-bottom', marginRight: '4px' }} />
                                         Completed ({completedSeries.length})
                                     </button>
+                                </div>
+                                <div className="toolbar-actions">
+                                    <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort items">
+                                        <option value="added">Recently added</option>
+                                        <option value="title">Title A–Z</option>
+                                        <option value="newest">Newest</option>
+                                        <option value="oldest">Oldest</option>
+                                    </select>
+                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as JSON">
+                                        <Download size={15} /> Export
+                                    </button>
+                                </div>
                                 </div>
                             )}
 

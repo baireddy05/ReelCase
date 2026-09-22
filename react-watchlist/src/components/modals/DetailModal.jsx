@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { config, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
+import { config, tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Check, Plus, Minus, CheckCircle2, Tv, Trash2 } from 'lucide-react';
@@ -10,6 +10,7 @@ const DetailModal = ({ show, data, onClose }) => {
 
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [selectedEpisode, setSelectedEpisode] = useState(0);
+    const [cast, setCast] = useState([]);
 
     const isMovie = Boolean(data?.title);
     const type = isMovie ? 'movie' : 'series';
@@ -48,6 +49,17 @@ const DetailModal = ({ show, data, onClose }) => {
             setSelectedEpisode(0);
         }
     }, [data?.id, watchlistItem?.currentSeason, watchlistItem?.currentEpisode, isMovie]);
+
+    // Top-billed cast (cached, 1 request per title)
+    useEffect(() => {
+        if (!show || !data) return;
+        let cancelled = false;
+        setCast([]);
+        tmdb.getCredits(data.id, type).then(res => {
+            if (!cancelled && res?.cast) setCast(res.cast.slice(0, 8));
+        });
+        return () => { cancelled = true; };
+    }, [show, data?.id]);
 
     if (!show || !data) return null;
 
@@ -386,6 +398,27 @@ const DetailModal = ({ show, data, onClose }) => {
                                 <p className="subtle">Not available for streaming.</p>
                             )}
                         </div>
+
+                        {cast.length > 0 && (
+                            <>
+                                <h2>Top Cast</h2>
+                                <div className="cast-row">
+                                    {cast.map(person => (
+                                        <div key={person.cast_id || person.credit_id} className="cast-card" title={`${person.name} as ${person.character || ''}`}>
+                                            <img
+                                                src={person.profile_path ? getPosterUrl(person.profile_path, 'w200') : getPosterUrl(null)}
+                                                alt={person.name}
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={handleImageError}
+                                            />
+                                            <span className="cast-name">{person.name}</span>
+                                            {person.character && <span className="cast-char">{person.character}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                     
                     <div className="add-btn-container">

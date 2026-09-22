@@ -142,5 +142,14 @@ export const tmdb = {
             setCache(cacheKey, data);
         }
         return data;
+    },
+
+    async getCredits(id, type) {
+        const endpointType = type === 'movie' ? 'movie' : 'tv';
+        const cacheKey = `credits-${endpointType}-${id}`;
+        if (cache.has(cacheKey)) return cache.get(cacheKey);
+        const data = await this.fetch(`/${endpointType}/${id}/credits`);
+        if (data) setCache(cacheKey, data);
+        return data;
     }
 };

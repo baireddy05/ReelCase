@@ -50,7 +50,7 @@ const SearchBar = ({ onSelect }) => {
             <input 
                 type="text" 
                 id="searchInput" 
-                placeholder="Search for a movie or series..." 
+                placeholder="Search for a movie or series...  ( / )" 
                 autoComplete="off"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
