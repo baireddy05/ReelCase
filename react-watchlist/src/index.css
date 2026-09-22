@@ -1636,6 +1636,17 @@ body .modal-progress-section { background: var(--container-bg); }
 body .cast-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; cursor: grab; }
 body .cast-row:active { cursor: grabbing; }
 body .cast-row::-webkit-scrollbar { display: none; }
+body .cast-header { display: flex; align-items: center; justify-content: space-between; }
+body .cast-header h2 { margin: 22px 0 10px; }
+body .cast-controls { display: none; align-items: center; gap: 6px; }
+body .cast-arrow { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-color); background: transparent; color: var(--subtle-text-color); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; }
+body .cast-arrow:hover:not(:disabled) { color: var(--text-color); border-color: var(--subtle-text-color); }
+body .cast-arrow:disabled { opacity: .3; cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+    body .cast-controls { display: flex; }
+}
+body .cast-row:active { cursor: grabbing; }
+body .cast-row::-webkit-scrollbar { display: none; }
 body .cast-card { flex: 0 0 80px; text-align: center; text-decoration: none; color: inherit; border-radius: 10px; transition: transform .2s var(--ease-out); }
 body .cast-card:hover { transform: translateY(-2px); }
 body .cast-card img { width: 80px; height: 120px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border-color); display: block; }

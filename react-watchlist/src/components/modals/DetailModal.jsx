@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Check, Plus, Minus, CheckCircle2, Tv, Trash2, Play } from 'lucide-react';
+import { Check, Plus, Minus, CheckCircle2, Tv, Trash2, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DetailModal = ({ show, data, onClose }) => {
     const { watchlist, addToWatchlist, updateSeriesProgress, requestDelete } = useWatchlist();
@@ -14,6 +14,8 @@ const DetailModal = ({ show, data, onClose }) => {
     const [trailerKey, setTrailerKey] = useState(null);
     const castRef = useRef(null);
     const castDrag = useRef({ down: false, startX: 0, startScroll: 0, moved: false });
+    const [castCanLeft, setCastCanLeft] = useState(false);
+    const [castCanRight, setCastCanRight] = useState(false);
 
     // Horizontal wheel + drag-to-scroll for the cast strip
     const onCastWheel = useCallback((e) => {
@@ -45,6 +47,17 @@ const DetailModal = ({ show, data, onClose }) => {
     const onCastClick = (e) => {
         if (castDrag.current.moved) { e.preventDefault(); castDrag.current.moved = false; }
     };
+    const updateCastArrows = useCallback(() => {
+        const el = castRef.current;
+        if (!el) return;
+        setCastCanLeft(el.scrollLeft > 4);
+        setCastCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    }, []);
+    const scrollCastBy = useCallback((dir) => {
+        const el = castRef.current;
+        if (!el) return;
+        el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 200), behavior: 'smooth' });
+    }, []);
 
     const isMovie = Boolean(data?.title);
     const type = isMovie ? 'movie' : 'series';
@@ -110,6 +123,9 @@ const DetailModal = ({ show, data, onClose }) => {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [show, onClose]);
+
+    // Refresh cast arrow states once photos load
+    useEffect(() => { updateCastArrows(); }, [cast, updateCastArrows]);
 
     if (!show || !data) return null;
 
@@ -513,10 +529,21 @@ const DetailModal = ({ show, data, onClose }) => {
 
                         {cast.length > 0 && (
                             <>
-                                <h2>Top Cast</h2>
+                                <div className="cast-header">
+                                    <h2>Top Cast</h2>
+                                    <div className="cast-controls">
+                                        <button className="cast-arrow" onClick={() => scrollCastBy(-1)} disabled={!castCanLeft} aria-label="Scroll cast left">
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <button className="cast-arrow" onClick={() => scrollCastBy(1)} disabled={!castCanRight} aria-label="Scroll cast right">
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                </div>
                                 <div
                                     className="cast-row"
                                     ref={castRef}
+                                    onScroll={updateCastArrows}
                                     onWheel={onCastWheel}
                                     onPointerDown={onCastPointerDown}
                                     onPointerMove={onCastPointerMove}
