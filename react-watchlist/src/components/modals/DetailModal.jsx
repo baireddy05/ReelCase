@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { config, tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Check, Plus, Minus, CheckCircle2, Tv, Trash2 } from 'lucide-react';
+import { Check, Plus, Minus, CheckCircle2, Tv, Trash2, Play } from 'lucide-react';
 
 const DetailModal = ({ show, data, onClose }) => {
     const { watchlist, addToWatchlist, updateSeriesProgress, requestDelete } = useWatchlist();
@@ -11,6 +11,7 @@ const DetailModal = ({ show, data, onClose }) => {
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [selectedEpisode, setSelectedEpisode] = useState(0);
     const [cast, setCast] = useState([]);
+    const [trailerKey, setTrailerKey] = useState(null);
 
     const isMovie = Boolean(data?.title);
     const type = isMovie ? 'movie' : 'series';
@@ -50,20 +51,40 @@ const DetailModal = ({ show, data, onClose }) => {
         }
     }, [data?.id, watchlistItem?.currentSeason, watchlistItem?.currentEpisode, isMovie]);
 
-    // Top-billed cast (cached, 1 request per title)
+    // Top-billed cast + trailer (cached, 1 request each per title)
     useEffect(() => {
         if (!show || !data) return;
         let cancelled = false;
         setCast([]);
+        setTrailerKey(null);
         tmdb.getCredits(data.id, type).then(res => {
             if (!cancelled && res?.cast) setCast(res.cast.slice(0, 8));
+        });
+        tmdb.getVideos(data.id, type).then(res => {
+            if (cancelled || !res?.results) return;
+            const vid = res.results.find(v => v.site === 'YouTube' && v.type === 'Trailer')
+                || res.results.find(v => v.site === 'YouTube' && v.type === 'Teaser')
+                || res.results.find(v => v.site === 'YouTube');
+            if (vid) setTrailerKey(vid.key);
         });
         return () => { cancelled = true; };
     }, [show, data?.id]);
 
+    // Esc closes the popup
+    useEffect(() => {
+        if (!show) return;
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [show, onClose]);
+
     if (!show || !data) return null;
 
-    const providers = data['watch/providers']?.results[config.region] || data['watch/providers']?.results['US'];
+    const providersRaw = data['watch/providers']?.results[config.region] || data['watch/providers']?.results['US'];
+    // Dedupe variants like "Netflix" + "Netflix Standard with Ads" by base name
+    const providers = providersRaw?.flatrate
+        ? [...new Map(providersRaw.flatrate.map(p => [p.provider_name.replace(/\s+(Standard|Basic|Premium).*/i, '').trim(), p])).values()]
+        : null;
     const imdbId = data.external_ids?.imdb_id;
 
     // Calculate live progress for series
@@ -262,7 +283,18 @@ const DetailModal = ({ show, data, onClose }) => {
                                     {totalEpisodes > 0 ? ` • ${totalEpisodes} Episodes` : ''}
                                 </span>
                             )}
+                            {data.vote_average ? <span> &bull; ★ {data.vote_average.toFixed(1)}</span> : null}
                         </div>
+                        {trailerKey && (
+                            <a
+                                className="trailer-btn"
+                                href={`https://www.youtube.com/watch?v=${trailerKey}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Play size={15} /> Watch Trailer
+                            </a>
+                        )}
 
                         {/* Interactive Manual Progress Tracker for TV Series */}
                         {!isMovie && (
@@ -382,8 +414,8 @@ const DetailModal = ({ show, data, onClose }) => {
                         
                         <h2>Where to Watch</h2>
                         <div className="providers-list">
-                            {providers?.flatrate ? (
-                                providers.flatrate.map(p => (
+                            {providers ? (
+                                providers.map(p => (
                                     <img 
                                         key={p.provider_id} 
                                         src={getPosterUrl(p.logo_path, 'w200')} 

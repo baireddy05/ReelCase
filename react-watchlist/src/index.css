@@ -1655,6 +1655,21 @@ body .cast-card img { width: 84px; height: 126px; object-fit: cover; border-radi
 body .cast-name { display: block; font-size: .72rem; font-weight: 700; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body .cast-char { display: block; font-size: .68rem; color: var(--subtle-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* --- Detail popup fixes: no clipping, slim scroll, sticky actions --- */
+body #detailModalOverlay .modal-container { overflow-x: hidden; }
+body .detail-content-wrapper,
+body .detail-info,
+body .detail-info .plot,
+body .modal-progress-section { min-width: 0; }
+body .detail-info h1 { overflow-wrap: break-word; }
+body .detail-info .plot { overflow-wrap: break-word; word-break: normal; }
+body #detailModalOverlay .modal-container::-webkit-scrollbar { width: 8px; }
+body #detailModalOverlay .modal-container::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 8px; }
+body #detailModalOverlay .modal-container { scrollbar-width: thin; }
+body .trailer-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--container-bg); color: var(--text-color); font-size: .85rem; font-weight: 700; text-decoration: none; transition: background .2s; }
+body .trailer-btn:hover { background: var(--border-color); }
+body .add-btn-container { position: sticky; bottom: calc(var(--spacing-lg) * -1); background: color-mix(in srgb, var(--bg-color) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-color); }
+
 /* --- Reduced motion --- */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
