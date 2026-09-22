@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Tv } from 'lucide-react';
+import { Film, Tv, Compass } from 'lucide-react';
 
 const BottomNav = ({ activeTab, setActiveTab }) => {
     return (
@@ -17,6 +17,13 @@ const BottomNav = ({ activeTab, setActiveTab }) => {
             >
                 <Tv size={20} />
                 <span>Series</span>
+            </button>
+            <button 
+                className={`nav-item ${activeTab === 'discover' ? 'active' : ''}`}
+                onClick={() => setActiveTab('discover')}
+            >
+                <Compass size={20} />
+                <span>Discover</span>
             </button>
         </nav>
     );

@@ -10,7 +10,7 @@ import Toaster from './components/Toaster';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
-import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles } from 'lucide-react';
+import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles, Compass } from 'lucide-react';
 
 const AuthModal = lazy(() => import('./components/modals/AuthModal'));
 const DetailModal = lazy(() => import('./components/modals/DetailModal'));
@@ -112,7 +112,7 @@ function App() {
 
             <SearchBar onSelect={handleSelectSearchItem} />
 
-            {user && (
+            {user && activeTab !== 'discover' && (
                 <StatsBar
                     movies={watchlist.movies}
                     series={watchlist.series}
@@ -121,20 +121,30 @@ function App() {
                 />
             )}
 
-            {user && <DiscoverRow onSelect={handleSelectSearchItem} />}
-
-            <div className="tabs desktop-only">
+            <div className="tabs desktop-only" role="tablist" aria-label="Library sections">
                 <button 
+                    role="tab"
+                    aria-selected={activeTab === 'movies'}
                     className={`tab-button ${activeTab === 'movies' ? 'active' : ''}`}
                     onClick={() => setActiveTab('movies')}
                 >
                     <Film size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Movies ({watchlist.movies.length})
                 </button>
                 <button 
+                    role="tab"
+                    aria-selected={activeTab === 'series'}
                     className={`tab-button ${activeTab === 'series' ? 'active' : ''}`}
                     onClick={() => setActiveTab('series')}
                 >
                     <Tv size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Series ({watchlist.series.length})
+                </button>
+                <button 
+                    role="tab"
+                    aria-selected={activeTab === 'discover'}
+                    className={`tab-button ${activeTab === 'discover' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('discover')}
+                >
+                    <Compass size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Discover
                 </button>
             </div>
 
@@ -334,6 +344,11 @@ function App() {
                                     )}
                                 </>
                             )}
+                        </div>
+
+                        {/* DISCOVER TAB — trending, fetched only when opened */}
+                        <div className={`bucket-list ${activeTab === 'discover' ? 'active' : ''}`}>
+                            {activeTab === 'discover' && <DiscoverRow onSelect={handleSelectSearchItem} />}
                         </div>
                     </>
                 )}
