@@ -1,23 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="rc-bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b1026"/>
-      <stop offset=".55" stop-color="#312e81"/>
-      <stop offset="1" stop-color="#6d28d9"/>
-    </linearGradient>
-    <linearGradient id="rc-accent" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#60a5fa"/>
-      <stop offset=".5" stop-color="#a855f7"/>
-      <stop offset="1" stop-color="#f472b6"/>
-    </linearGradient>
-    <filter id="rc-shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".45"/>
-    </filter>
-  </defs>
-  <rect x="32" y="32" width="448" height="448" rx="116" fill="url(#rc-bg)" filter="url(#rc-shadow)"/>
-  <rect x="32" y="32" width="448" height="448" rx="116" fill="none" stroke="url(#rc-accent)" stroke-width="7" stroke-opacity=".55"/>
-  <circle cx="256" cy="248" r="124" fill="none" stroke="url(#rc-accent)" stroke-width="26"/>
-  <g fill="#0b1026">
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="#111111"/>
+  <rect x="32" y="32" width="448" height="448" rx="116" fill="none" stroke="#111111" stroke-width="7"/>
+  <circle cx="256" cy="248" r="124" fill="none" stroke="#fafafa" stroke-width="26"/>
+  <g fill="#111111">
     <circle cx="256" cy="158" r="26"/>
     <circle cx="334" cy="203" r="26"/>
     <circle cx="334" cy="293" r="26"/>
@@ -25,15 +10,6 @@
     <circle cx="178" cy="293" r="26"/>
     <circle cx="178" cy="203" r="26"/>
   </g>
-  <g fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="5">
-    <circle cx="256" cy="158" r="26"/>
-    <circle cx="334" cy="203" r="26"/>
-    <circle cx="334" cy="293" r="26"/>
-    <circle cx="256" cy="338" r="26"/>
-    <circle cx="178" cy="293" r="26"/>
-    <circle cx="178" cy="203" r="26"/>
-  </g>
-  <path d="M238 198 L302 248 L238 298 Z" fill="#fff" stroke="#fff" stroke-width="14" stroke-linejoin="round"/>
-  <path d="M386 104c0 14 8 22 22 22-14 0-22 8-22 22 0-14-8-22-22-22 14 0 22-8 22-22z" fill="#f0abfc"/>
-  <rect x="148" y="392" width="216" height="26" rx="13" fill="url(#rc-accent)" opacity=".85"/>
+  <path d="M238 198 L302 248 L238 298 Z" fill="#fafafa" stroke="#fafafa" stroke-width="14" stroke-linejoin="round"/>
+  <rect x="148" y="392" width="216" height="26" rx="13" fill="#fafafa" opacity=".9"/>
 </svg>
