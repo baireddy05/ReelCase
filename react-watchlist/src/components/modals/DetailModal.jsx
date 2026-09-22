@@ -258,11 +258,19 @@ const DetailModal = ({ show, data, onClose }) => {
         currentActiveStatus = 'watching';
     }
 
+    const backdropUrl = data.backdrop_path ? getPosterUrl(data.backdrop_path, 'w1280') : null;
+
     return (
         <div id="detailModalOverlay" className="modal-overlay show" onClick={handleBackdropClick}>
             <div className="modal-container">
-                <button className="close-detail-btn" onClick={onClose}>&times;</button>
-                <div className="detail-content-wrapper">
+                {backdropUrl && (
+                    <div className="detail-hero" aria-hidden="true">
+                        <img src={backdropUrl} alt="" onError={handleImageError} />
+                        <div className="detail-hero-fade" />
+                    </div>
+                )}
+                <button className="close-detail-btn" onClick={onClose} aria-label="Close">&times;</button>
+                <div className={`detail-content-wrapper${backdropUrl ? ' has-backdrop' : ''}`}>
                     <div className="detail-poster">
                         <img 
                             src={getPosterUrl(data, 'w500')} 
@@ -452,6 +460,7 @@ const DetailModal = ({ show, data, onClose }) => {
                             </>
                         )}
                     </div>
+                </div>
                     
                     <div className="add-btn-container">
                         {!isInWatchlist ? (
@@ -486,7 +495,6 @@ const DetailModal = ({ show, data, onClose }) => {
                             </div>
                         )}
                     </div>
-                </div>
             </div>
         </div>
     );

@@ -1655,20 +1655,30 @@ body .cast-card img { width: 84px; height: 126px; object-fit: cover; border-radi
 body .cast-name { display: block; font-size: .72rem; font-weight: 700; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body .cast-char { display: block; font-size: .68rem; color: var(--subtle-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* --- Detail popup fixes: no clipping, slim scroll, sticky actions --- */
-body #detailModalOverlay .modal-container { overflow-x: hidden; }
-body .detail-content-wrapper,
-body .detail-info,
-body .detail-info .plot,
-body .modal-progress-section { min-width: 0; }
-body .detail-info h1 { overflow-wrap: break-word; }
-body .detail-info .plot { overflow-wrap: break-word; word-break: normal; }
-body #detailModalOverlay .modal-container::-webkit-scrollbar { width: 8px; }
-body #detailModalOverlay .modal-container::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 8px; }
-body #detailModalOverlay .modal-container { scrollbar-width: thin; }
-body .trailer-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--container-bg); color: var(--text-color); font-size: .85rem; font-weight: 700; text-decoration: none; transition: background .2s; }
-body .trailer-btn:hover { background: var(--border-color); }
-body .add-btn-container { position: sticky; bottom: calc(var(--spacing-lg) * -1); background: color-mix(in srgb, var(--bg-color) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-color); }
+/* --- Detail popup: cinematic hero + solid action bar --- */
+body #detailModalOverlay .modal-container { padding: 0; overflow-x: hidden; }
+body .detail-hero { position: relative; height: 240px; overflow: hidden; background: var(--border-color); }
+body .detail-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+body .detail-hero-fade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 40%, var(--bg-color) 100%); }
+body.dark-mode .detail-hero-fade { background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, transparent 40%, var(--bg-color) 100%); }
+body #detailModalOverlay .detail-content-wrapper { padding: 0 var(--spacing-xl) var(--spacing-lg); margin-top: -72px; position: relative; }
+body #detailModalOverlay .detail-poster img { border: 1px solid var(--border-color); }
+body #detailModalOverlay .close-detail-btn { background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+body.dark-mode #detailModalOverlay .close-detail-btn { background: rgba(0,0,0,.45); color: #fff; }
+body .add-btn-container { position: sticky; bottom: 0; background: var(--bg-color); padding: 14px var(--spacing-xl) calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-color); margin: var(--spacing-lg) 0 0; text-align: center; }
+body .detail-add-actions { justify-content: center; }
+body .detail-in-watchlist-status { align-items: center; }
+@media (min-width: 1024px) {
+    body #detailModalOverlay .modal-container { padding: 0; }
+    body .detail-hero { height: 300px; border-radius: var(--border-radius) var(--border-radius) 0 0; }
+    body #detailModalOverlay .detail-content-wrapper { grid-template-columns: 240px 1fr; padding: 0 var(--spacing-xl) var(--spacing-lg); margin-top: -84px; }
+    body .add-btn-container { text-align: center; margin-top: var(--spacing-lg); grid-column: unset; }
+}
+@media (max-width: 1023px) {
+    body .detail-hero { height: 190px; }
+    body #detailModalOverlay .detail-content-wrapper { padding: 0 var(--spacing-md) var(--spacing-md); margin-top: -56px; }
+    body .add-btn-container { padding: 12px var(--spacing-md) calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
 
 /* --- Reduced motion --- */
 @media (prefers-reduced-motion: reduce) {
