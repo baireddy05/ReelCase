@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { config, tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
+import { tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
 import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Check, Plus, Minus, CheckCircle2, Tv, Trash2, Play } from 'lucide-react';
@@ -80,11 +80,24 @@ const DetailModal = ({ show, data, onClose }) => {
 
     if (!show || !data) return null;
 
-    const providersRaw = data['watch/providers']?.results[config.region] || data['watch/providers']?.results['US'];
-    // Dedupe variants like "Netflix" + "Netflix Standard with Ads" by base name
-    const providers = providersRaw?.flatrate
-        ? [...new Map(providersRaw.flatrate.map(p => [p.provider_name.replace(/\s+(Standard|Basic|Premium).*/i, '').trim(), p])).values()]
-        : null;
+    // Prefer India catalog, fall back to US so the row is rarely empty
+    const watchResults = data['watch/providers']?.results || {};
+    const regionCode = watchResults['IN'] ? 'IN' : 'US';
+    const regionLabel = regionCode === 'IN' ? 'India' : 'U.S. (not in India)';
+    const providersRaw = watchResults[regionCode];
+    const dedupe = (list) => list
+        ? [...new Map(list.map(p => [p.provider_name.replace(/\s+(Standard|Basic|Premium).*/i, '').trim(), p])).values()]
+        : [];
+    // Prefer streaming, then rent, then buy — each clickable via TMDB's watch link
+    const flatrate = dedupe(providersRaw?.flatrate);
+    const rent = dedupe(providersRaw?.rent);
+    const buy = dedupe(providersRaw?.buy);
+    const providerGroups = [
+        flatrate.length > 0 ? { label: 'Stream', items: flatrate } : null,
+        rent.length > 0 ? { label: 'Rent', items: rent } : null,
+        buy.length > 0 ? { label: 'Buy', items: buy } : null,
+    ].filter(Boolean);
+    const watchLink = providersRaw?.link;
     const imdbId = data.external_ids?.imdb_id;
 
     // Calculate live progress for series
@@ -420,19 +433,45 @@ const DetailModal = ({ show, data, onClose }) => {
                             )}
                         </div>
                         
-                        <h2>Where to Watch</h2>
+                        <h2>Where to Watch · {regionLabel}</h2>
                         <div className="providers-list">
-                            {providers ? (
-                                providers.map(p => (
-                                    <img 
-                                        key={p.provider_id} 
-                                        src={getPosterUrl(p.logo_path, 'w200')} 
-                                        title={p.provider_name}
-                                        alt={p.provider_name}
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={handleImageError}
-                                    />
+                            {providerGroups.length > 0 ? (
+                                providerGroups.map(group => (
+                                    <div key={group.label} className="provider-group">
+                                        <span className="provider-group-label">{group.label}</span>
+                                        <div className="provider-logos">
+                                            {group.items.map(p => (
+                                                watchLink ? (
+                                                    <a
+                                                        key={p.provider_id}
+                                                        href={watchLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title={`${p.provider_name} — open streaming options`}
+                                                    >
+                                                        <img
+                                                            src={getPosterUrl(p.logo_path, 'w200')}
+                                                            title={p.provider_name}
+                                                            alt={p.provider_name}
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                            onError={handleImageError}
+                                                        />
+                                                    </a>
+                                                ) : (
+                                                    <img
+                                                        key={p.provider_id}
+                                                        src={getPosterUrl(p.logo_path, 'w200')}
+                                                        title={p.provider_name}
+                                                        alt={p.provider_name}
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                        onError={handleImageError}
+                                                    />
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
                                 ))
                             ) : (
                                 <p className="subtle">Not available for streaming.</p>

@@ -5,7 +5,7 @@ export const config = {
     tmdbBaseUrl: 'https://api.themoviedb.org/3',
     tmdbImageBaseUrl: 'https://image.tmdb.org/t/p/w500',
     placeholder: SVG_PLACEHOLDER,
-    region: 'US'
+    region: 'IN'
 };
 
 export const getPosterUrl = (posterOrItem, size = 'w500') => {

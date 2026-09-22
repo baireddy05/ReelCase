@@ -1640,6 +1640,13 @@ body .cast-card img { width: 80px; height: 120px; object-fit: cover; border-radi
 body .cast-name { display: block; font-size: .7rem; font-weight: 700; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body .cast-char { display: block; font-size: .66rem; color: var(--subtle-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body .providers-list img { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border-color); }
+body .provider-group { margin-bottom: 10px; }
+body .provider-group:last-child { margin-bottom: 0; }
+body .provider-group-label { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--subtle-text-color); margin-bottom: 6px; }
+body .provider-logos { display: flex; flex-wrap: wrap; gap: 8px; }
+body .provider-logos a { display: block; border-radius: 10px; transition: transform .2s var(--ease-out), box-shadow .2s; }
+body .provider-logos a:hover { transform: translateY(-2px); box-shadow: 0 8px 18px var(--shadow-hover); }
+body .provider-logos a img { display: block; }
 
 /* --- Confirm + auth --- */
 body #confirmModalOverlay .modal-content.confirm-modal-box { border-radius: 20px; animation: popIn .28s var(--ease-out); box-shadow: 0 20px 50px var(--shadow-hover); border: 1px solid var(--border-color); background: var(--container-bg); }
