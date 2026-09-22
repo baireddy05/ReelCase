@@ -1635,7 +1635,8 @@ body .modal-select:focus, body .edit-select:focus { box-shadow: var(--ring); bor
 body .modal-progress-section { background: var(--container-bg); }
 body .cast-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
 body .cast-row::-webkit-scrollbar { display: none; }
-body .cast-card { flex: 0 0 80px; text-align: center; }
+body .cast-card { flex: 0 0 80px; text-align: center; text-decoration: none; color: inherit; border-radius: 10px; transition: transform .2s var(--ease-out); }
+body .cast-card:hover { transform: translateY(-2px); }
 body .cast-card img { width: 80px; height: 120px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border-color); display: block; }
 body .cast-name { display: block; font-size: .7rem; font-weight: 700; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body .cast-char { display: block; font-size: .66rem; color: var(--subtle-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

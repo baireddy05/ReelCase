@@ -483,7 +483,14 @@ const DetailModal = ({ show, data, onClose }) => {
                                 <h2>Top Cast</h2>
                                 <div className="cast-row">
                                     {cast.map(person => (
-                                        <div key={person.cast_id || person.credit_id} className="cast-card" title={`${person.name} as ${person.character || ''}`}>
+                                        <a
+                                            key={person.cast_id || person.credit_id}
+                                            className="cast-card"
+                                            title={`${person.name} — search on Google`}
+                                            href={`https://www.google.com/search?q=${encodeURIComponent(person.name + ' actor')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
                                             <img
                                                 src={person.profile_path ? getPosterUrl(person.profile_path, 'w200') : getPosterUrl(null)}
                                                 alt={person.name}
@@ -493,7 +500,7 @@ const DetailModal = ({ show, data, onClose }) => {
                                             />
                                             <span className="cast-name">{person.name}</span>
                                             {person.character && <span className="cast-char">{person.character}</span>}
-                                        </div>
+                                        </a>
                                     ))}
                                 </div>
                             </>
