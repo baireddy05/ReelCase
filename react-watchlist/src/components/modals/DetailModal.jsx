@@ -17,11 +17,20 @@ import {
     Heart, 
     Share2, 
     X, 
-    Star
+    Star, 
+    Eye,
+    BookmarkCheck
 } from 'lucide-react';
 
 const DetailModal = ({ show, data, onClose }) => {
-    const { watchlist, addToWatchlist, updateSeriesProgress, requestDelete, toggleFavorite } = useWatchlist();
+    const { 
+        watchlist, 
+        addToWatchlist, 
+        updateSeriesProgress, 
+        requestDelete, 
+        toggleFavorite, 
+        toggleWatched 
+    } = useWatchlist();
     const { user } = useAuth();
 
     const [selectedSeason, setSelectedSeason] = useState(1);
@@ -78,7 +87,6 @@ const DetailModal = ({ show, data, onClose }) => {
     const dataId = data?.id;
     const itemSeason = watchlistItem?.currentSeason;
     const itemEpisode = watchlistItem?.currentEpisode;
-
     const inList = Boolean(watchlistItem);
 
     useEffect(() => {
@@ -212,7 +220,7 @@ const DetailModal = ({ show, data, onClose }) => {
     // Watch providers calculation (prioritize India, then US)
     const watchResults = data['watch/providers']?.results || {};
     const regionCode = watchResults['IN'] ? 'IN' : 'US';
-    const regionLabel = regionCode === 'IN' ? 'India' : 'U.S. (international)';
+    const regionLabel = regionCode === 'IN' ? 'India' : 'U.S. (International)';
     const providersRaw = watchResults[regionCode];
     
     const dedupe = (list) => list
@@ -382,6 +390,12 @@ const DetailModal = ({ show, data, onClose }) => {
         addToWatchlist(data, type, 'completed');
     };
 
+    const handleToggleWatchedStatus = () => {
+        if (isInWatchlist) {
+            toggleWatched(data.id, type);
+        }
+    };
+
     const handleRemoveFromWatchlist = () => {
         if (watchlistItem) {
             requestDelete(watchlistItem, type);
@@ -433,7 +447,7 @@ const DetailModal = ({ show, data, onClose }) => {
     return (
         <div id="detailModalOverlay" className="modal-overlay show" onClick={handleBackdropClick} role="dialog" aria-modal="true">
             <div className="modal-container">
-                {/* Hero Backdrop Banner */}
+                {/* Hero Backdrop Banner with Multi-Directional Atmospheric Fade */}
                 {backdropUrl && (
                     <div className="detail-hero" aria-hidden="true">
                         <img src={backdropUrl} alt="" onError={handleImageError} />
@@ -441,46 +455,46 @@ const DetailModal = ({ show, data, onClose }) => {
                     </div>
                 )}
 
-                {/* Top Action Buttons (Close, Share, Favorite) */}
-                <div className="detail-top-controls">
-                    <button 
-                        type="button" 
-                        className={`detail-control-btn fav-btn ${isFavorite ? 'active' : ''}`}
-                        onClick={handleToggleFavorite}
-                        title={isFavorite ? "Favorited" : "Add to favorites"}
-                        aria-label="Favorite"
-                    >
-                        <Heart size={18} fill={isFavorite ? "currentColor" : "none"} />
-                    </button>
-                    <button 
-                        type="button" 
-                        className="detail-control-btn share-btn"
-                        onClick={handleShare}
-                        title="Share this title"
-                        aria-label="Share"
-                    >
-                        <Share2 size={18} />
-                    </button>
-                    <button 
-                        type="button" 
-                        className="detail-control-btn close-detail-btn" 
-                        onClick={onClose} 
-                        aria-label="Close modal"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
+                {/* Floating Close Button */}
+                <button 
+                    type="button" 
+                    className="detail-close-btn" 
+                    onClick={onClose} 
+                    aria-label="Close modal"
+                    title="Close (Esc)"
+                >
+                    <X size={20} />
+                </button>
 
                 <div className={`detail-content-wrapper${backdropUrl ? ' has-backdrop' : ''}`}>
                     {/* Left Poster Column */}
-                    <div className="detail-poster">
-                        <img 
-                            src={getPosterUrl(data, 'w500')} 
-                            alt={title} 
-                            loading="lazy"
-                            decoding="async"
-                            onError={handleImageError}
-                        />
+                    <div className="detail-poster-col">
+                        <div className="detail-poster">
+                            <img 
+                                src={getPosterUrl(data, 'w500')} 
+                                alt={title} 
+                                loading="lazy"
+                                decoding="async"
+                                onError={handleImageError}
+                            />
+                        </div>
+
+                        {/* Anchor Card under poster if in library */}
+                        {isInWatchlist && (
+                            <div className="poster-side-card">
+                                <div className="poster-status-indicator">
+                                    <BookmarkCheck size={16} className="bookmark-icon" />
+                                    <span>{watchlistItem.watched ? 'Marked Watched' : 'In Library'}</span>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    className="side-remove-btn"
+                                    onClick={handleRemoveFromWatchlist}
+                                >
+                                    <Trash2 size={13} /> Remove
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Right Info Column */}
@@ -490,6 +504,7 @@ const DetailModal = ({ show, data, onClose }) => {
                             {data.tagline && <p className="detail-tagline">“{data.tagline}”</p>}
                         </div>
 
+                        {/* Metadata Ribbon */}
                         <div className="meta">
                             <span className="meta-pill year">{getYear(data) || 'N/A'}</span>
                             {isMovie && data.runtime ? (
@@ -523,45 +538,120 @@ const DetailModal = ({ show, data, onClose }) => {
                         {/* Director / Creator */}
                         {directors && (
                             <div className="detail-creators">
-                                <span className="creators-label">{isMovie ? 'Directed by' : 'Created by'}:</span>
+                                <span className="creators-label">{isMovie ? 'Directed by:' : 'Created by:'}</span>
                                 <span className="creators-name">{directors}</span>
                             </div>
                         )}
 
-                        {/* Watch Trailer Button & Inline Player */}
-                        {trailerKey && (
-                            <div className="trailer-section">
-                                {!isPlayingTrailer ? (
+                        {/* ========================================================
+                            UNIFIED ACTION BAR (All controls in natural eye level)
+                           ======================================================== */}
+                        <div className="detail-actions-bar">
+                            {!isInWatchlist ? (
+                                <>
+                                    <button 
+                                        type="button"
+                                        className="detail-action-btn primary" 
+                                        onClick={handleAddWithProgress}
+                                    >
+                                        <Plus size={16} /> Add to Reelcase
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        className="detail-action-btn secondary" 
+                                        onClick={handleAlreadyWatched}
+                                    >
+                                        <CheckCircle2 size={16} /> Already Watched
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="detail-status-pill in-list">
+                                        <Check size={16} />
+                                        <span>{watchlistItem.watched ? 'Watched' : 'In Reelcase'}</span>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        className="detail-action-btn secondary" 
+                                        onClick={handleToggleWatchedStatus}
+                                        title={watchlistItem.watched ? "Mark as unwatched" : "Mark as watched"}
+                                    >
+                                        <Eye size={16} /> 
+                                        {watchlistItem.watched ? 'Mark Unwatched' : 'Mark Watched'}
+                                    </button>
+                                </>
+                            )}
+
+                            {/* Watch Trailer Button */}
+                            {trailerKey && (
+                                <button 
+                                    type="button" 
+                                    className={`detail-action-btn trailer ${isPlayingTrailer ? 'active' : ''}`}
+                                    onClick={() => setIsPlayingTrailer(!isPlayingTrailer)}
+                                >
+                                    <Play size={14} fill="currentColor" /> 
+                                    {isPlayingTrailer ? 'Hide Trailer' : 'Watch Trailer'}
+                                </button>
+                            )}
+
+                            {/* Favorite Button */}
+                            <button 
+                                type="button" 
+                                className={`detail-icon-btn fav-btn ${isFavorite ? 'active' : ''}`}
+                                onClick={handleToggleFavorite}
+                                title={isFavorite ? "Favorited" : "Add to favorites"}
+                                aria-label="Favorite"
+                            >
+                                <Heart size={18} fill={isFavorite ? "currentColor" : "none"} />
+                            </button>
+
+                            {/* Share Button */}
+                            <button 
+                                type="button" 
+                                className="detail-icon-btn share-btn"
+                                onClick={handleShare}
+                                title="Share this title"
+                                aria-label="Share"
+                            >
+                                <Share2 size={18} />
+                            </button>
+
+                            {/* Remove Button (if in library) */}
+                            {isInWatchlist && (
+                                <button 
+                                    type="button" 
+                                    className="detail-icon-btn danger-btn"
+                                    onClick={handleRemoveFromWatchlist}
+                                    title="Remove from Reelcase"
+                                    aria-label="Remove from Reelcase"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Inline Trailer Player View */}
+                        {trailerKey && isPlayingTrailer && (
+                            <div className="inline-trailer-player">
+                                <div className="trailer-player-header">
+                                    <span>Official Trailer</span>
                                     <button 
                                         type="button" 
-                                        className="trailer-btn" 
-                                        onClick={() => setIsPlayingTrailer(true)}
+                                        className="close-trailer-btn" 
+                                        onClick={() => setIsPlayingTrailer(false)}
                                     >
-                                        <Play size={15} fill="currentColor" /> Watch Trailer
+                                        <X size={15} /> Close Player
                                     </button>
-                                ) : (
-                                    <div className="inline-trailer-player">
-                                        <div className="trailer-player-header">
-                                            <span>Official Trailer</span>
-                                            <button 
-                                                type="button" 
-                                                className="close-trailer-btn" 
-                                                onClick={() => setIsPlayingTrailer(false)}
-                                            >
-                                                <X size={15} /> Close Player
-                                            </button>
-                                        </div>
-                                        <div className="trailer-iframe-wrap">
-                                            <iframe
-                                                src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0`}
-                                                title="Official Trailer"
-                                                frameBorder="0"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
+                                <div className="trailer-iframe-wrap">
+                                    <iframe
+                                        src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0`}
+                                        title="Official Trailer"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                </div>
                             </div>
                         )}
 
@@ -675,52 +765,43 @@ const DetailModal = ({ show, data, onClose }) => {
                             </div>
                         )}
 
-                        <h2>Synopsis</h2>
-                        <p className="plot">{data.overview || 'No synopsis provided for this title.'}</p>
-                        
-                        <h2>Ratings & External Links</h2>
-                        <div className="ratings">
-                            <span className="rating-tag tmdb">
-                                TMDb: <b>{data.vote_average ? data.vote_average.toFixed(1) : 'N/A'}</b>/10
-                            </span>
-                            {imdbId && (
-                                <a 
-                                    href={`https://www.imdb.com/title/${imdbId}`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="imdb-link"
-                                >
-                                    IMDb ↗
-                                </a>
-                            )}
-                            <a 
-                                href={`https://www.themoviedb.org/${type}/${data.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="tmdb-link"
-                            >
-                                TMDb Page ↗
-                            </a>
+                        {/* Synopsis */}
+                        <div className="detail-synopsis-section">
+                            <h2>Synopsis</h2>
+                            <p className="plot">{data.overview || 'No synopsis provided for this title.'}</p>
                         </div>
                         
-                        <h2>Where to Watch &bull; {regionLabel}</h2>
-                        <div className="providers-list">
-                            {providerGroups.length > 0 ? (
-                                providerGroups.map(group => (
-                                    <div key={group.label} className="provider-group">
-                                        <span className="provider-group-label">{group.label}</span>
-                                        <div className="provider-logos">
-                                            {group.items.map(p => (
-                                                watchLink ? (
-                                                    <a
-                                                        key={p.provider_id}
-                                                        href={watchLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title={`${p.provider_name} — open streaming options`}
-                                                        className="provider-logo-link"
-                                                    >
+                        {/* Where to Watch */}
+                        <div className="detail-providers-section">
+                            <h2>Where to Watch &bull; {regionLabel}</h2>
+                            <div className="providers-list">
+                                {providerGroups.length > 0 ? (
+                                    providerGroups.map(group => (
+                                        <div key={group.label} className="provider-group">
+                                            <span className="provider-group-label">{group.label}</span>
+                                            <div className="provider-logos">
+                                                {group.items.map(p => (
+                                                    watchLink ? (
+                                                        <a
+                                                            key={p.provider_id}
+                                                            href={watchLink}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            title={`${p.provider_name} — open streaming options`}
+                                                            className="provider-logo-link"
+                                                        >
+                                                            <img
+                                                                src={getPosterUrl(p.logo_path, 'w200')}
+                                                                title={p.provider_name}
+                                                                alt={p.provider_name}
+                                                                loading="lazy"
+                                                                decoding="async"
+                                                                onError={handleImageError}
+                                                            />
+                                                        </a>
+                                                    ) : (
                                                         <img
+                                                            key={p.provider_id}
                                                             src={getPosterUrl(p.logo_path, 'w200')}
                                                             title={p.provider_name}
                                                             alt={p.provider_name}
@@ -728,29 +809,20 @@ const DetailModal = ({ show, data, onClose }) => {
                                                             decoding="async"
                                                             onError={handleImageError}
                                                         />
-                                                    </a>
-                                                ) : (
-                                                    <img
-                                                        key={p.provider_id}
-                                                        src={getPosterUrl(p.logo_path, 'w200')}
-                                                        title={p.provider_name}
-                                                        alt={p.provider_name}
-                                                        loading="lazy"
-                                                        decoding="async"
-                                                        onError={handleImageError}
-                                                    />
-                                                )
-                                            ))}
+                                                    )
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="subtle">Not currently available on major digital/streaming platforms in this region.</p>
-                            )}
+                                    ))
+                                ) : (
+                                    <p className="subtle">Not currently available on major digital/streaming platforms in this region.</p>
+                                )}
+                            </div>
                         </div>
 
+                        {/* Top Billed Cast */}
                         {cast.length > 0 && (
-                            <>
+                            <div className="detail-cast-section">
                                 <div className="cast-header">
                                     <h2>Top Billed Cast</h2>
                                     <div className="cast-controls">
@@ -806,45 +878,37 @@ const DetailModal = ({ show, data, onClose }) => {
                                         </a>
                                     ))}
                                 </div>
-                            </>
+                            </div>
                         )}
+
+                        {/* Ratings & External Links */}
+                        <div className="detail-links-section">
+                            <h2>Ratings & External Links</h2>
+                            <div className="ratings">
+                                <span className="rating-tag tmdb">
+                                    TMDb: <b>{data.vote_average ? data.vote_average.toFixed(1) : 'N/A'}</b>/10
+                                </span>
+                                {imdbId && (
+                                    <a 
+                                        href={`https://www.imdb.com/title/${imdbId}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="imdb-link"
+                                    >
+                                        IMDb ↗
+                                    </a>
+                                )}
+                                <a 
+                                    href={`https://www.themoviedb.org/${type}/${data.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="tmdb-link"
+                                >
+                                    TMDb Page ↗
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                    
-                <div className="add-btn-container">
-                    {!isInWatchlist ? (
-                        <div className="detail-add-actions">
-                            <button 
-                                type="button"
-                                className="add-to-list-btn" 
-                                onClick={handleAddWithProgress}
-                            >
-                                <Plus size={16} /> Add to Reelcase
-                            </button>
-                            <button 
-                                type="button"
-                                className="add-to-list-btn already-watched-btn" 
-                                onClick={handleAlreadyWatched}
-                            >
-                                <CheckCircle2 size={16} /> Already Watched
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="detail-in-watchlist-status">
-                            <p className="success-text">
-                                <Check size={18} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
-                                {watchlistItem.watched ? 'Marked as Completed / Watched' : 'In Your Reelcase Library'}
-                            </p>
-                            <button 
-                                type="button" 
-                                className="detail-remove-btn"
-                                onClick={handleRemoveFromWatchlist}
-                            >
-                                <Trash2 size={15} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
-                                Remove from Reelcase
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

@@ -12,66 +12,83 @@ const StatsBar = memo(({ movies = [], series = [] }) => {
     const completionPct = totalTitles > 0 ? Math.round((totalWatchedTitles / totalTitles) * 100) : 0;
 
     return (
-        <section className="stats-bar" aria-label="Library stats dashboard">
-            <div className="stat stat-movies" title={`${stats.watchedMoviesCount} of ${movies.length} movies watched`}>
-                <div className="stat-icon-wrapper">
-                    <Film size={17} />
-                </div>
-                <div className="stat-text">
-                    <div className="stat-value">
-                        <strong>{movies.length}</strong>
-                        <span className="stat-sub">({stats.watchedMoviesCount} <Check size={11} className="inline-check" />)</span>
+        <section className="stats-dashboard" aria-label="Library stats dashboard">
+            {/* 1. MOVIES STAT */}
+            <div className="stat-card stat-movies" title={`${stats.watchedMoviesCount} of ${movies.length} movies watched`}>
+                <div className="stat-card-header">
+                    <div className="stat-icon-badge movies-badge">
+                        <Film size={16} />
                     </div>
-                    <span className="stat-label">Movies</span>
+                    <span className="stat-card-label">Movies</span>
+                </div>
+                <div className="stat-card-body">
+                    <div className="stat-main-number">{movies.length}</div>
+                    <div className="stat-card-pill movies-pill">
+                        <Check size={11} /> {stats.watchedMoviesCount} watched
+                    </div>
                 </div>
             </div>
 
-            <div className="stat stat-series" title={`${stats.watchingSeriesCount} currently watching, ${stats.completedSeriesCount} completed`}>
-                <div className="stat-icon-wrapper">
-                    <Tv size={17} />
-                </div>
-                <div className="stat-text">
-                    <div className="stat-value">
-                        <strong>{series.length}</strong>
-                        <span className="stat-sub">({stats.watchingSeriesCount} active)</span>
+            {/* 2. SERIES STAT */}
+            <div className="stat-card stat-series" title={`${stats.watchingSeriesCount} currently watching, ${stats.completedSeriesCount} completed`}>
+                <div className="stat-card-header">
+                    <div className="stat-icon-badge series-badge">
+                        <Tv size={16} />
                     </div>
-                    <span className="stat-label">Series</span>
+                    <span className="stat-card-label">Series</span>
+                </div>
+                <div className="stat-card-body">
+                    <div className="stat-main-number">{series.length}</div>
+                    <div className="stat-card-pill series-pill">
+                        {stats.watchingSeriesCount} active
+                    </div>
                 </div>
             </div>
 
-            <div className="stat stat-episodes" title={`${stats.watchedEpisodesCount} total episodes watched`}>
-                <div className="stat-icon-wrapper">
-                    <PlayCircle size={17} />
-                </div>
-                <div className="stat-text">
-                    <div className="stat-value">
-                        <strong>{stats.watchedEpisodesCount}</strong>
+            {/* 3. EPISODES STAT */}
+            <div className="stat-card stat-episodes" title={`${stats.watchedEpisodesCount} total episodes watched`}>
+                <div className="stat-card-header">
+                    <div className="stat-icon-badge episodes-badge">
+                        <PlayCircle size={16} />
                     </div>
-                    <span className="stat-label">Eps Watched</span>
+                    <span className="stat-card-label">Episodes</span>
+                </div>
+                <div className="stat-card-body">
+                    <div className="stat-main-number">{stats.watchedEpisodesCount}</div>
+                    <span className="stat-card-subtext">watched total</span>
                 </div>
             </div>
 
-            <div className="stat stat-time" title="Estimated cumulative watch time">
-                <div className="stat-icon-wrapper">
-                    <Clock size={17} />
-                </div>
-                <div className="stat-text">
-                    <div className="stat-value">
-                        <strong>{stats.formattedWatchTime}</strong>
+            {/* 4. WATCH TIME STAT */}
+            <div className="stat-card stat-time" title="Estimated cumulative watch time">
+                <div className="stat-card-header">
+                    <div className="stat-icon-badge time-badge">
+                        <Clock size={16} />
                     </div>
-                    <span className="stat-label">Watch Time</span>
+                    <span className="stat-card-label">Watch Time</span>
+                </div>
+                <div className="stat-card-body">
+                    <div className="stat-main-number time-number">{stats.formattedWatchTime}</div>
+                    <span className="stat-card-subtext">estimated</span>
                 </div>
             </div>
 
-            <div className="stat stat-completion" title={`${completionPct}% overall library completion rate`}>
-                <div className="stat-icon-wrapper completion-icon">
-                    <CheckCircle2 size={17} />
-                </div>
-                <div className="stat-text">
-                    <div className="stat-value">
-                        <strong>{completionPct}%</strong>
+            {/* 5. COMPLETION PROGRESS */}
+            <div className="stat-card stat-completion" title={`${completionPct}% overall library completion rate`}>
+                <div className="stat-card-header">
+                    <div className="stat-icon-badge completion-badge">
+                        <CheckCircle2 size={16} />
                     </div>
-                    <span className="stat-label">Completed</span>
+                    <span className="stat-card-label">Completed</span>
+                </div>
+                <div className="stat-card-body">
+                    <div className="stat-main-number completion-number">{completionPct}%</div>
+                    <div className="stat-mini-progress-bg">
+                        <div 
+                            className="stat-mini-progress-fill" 
+                            style={{ width: `${completionPct}%` }}
+                        />
+                    </div>
                 </div>
             </div>
         </section>
