@@ -105,7 +105,7 @@ const DiscoverRow = memo(({ onSelect }) => {
             dragRef.current.moved = false; 
             return; 
         }
-        onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie');
+        onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie', item);
     };
 
     const isItemInWatchlist = (item) => {
@@ -117,7 +117,7 @@ const DiscoverRow = memo(({ onSelect }) => {
     const handleQuickAdd = async (e, item) => {
         e.stopPropagation();
         if (!user) {
-            onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie');
+            onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie', item);
             return;
         }
         await addToWatchlist(item, item.media_type === 'tv' ? 'series' : 'movie', 'plan_to_watch');
@@ -203,6 +203,7 @@ const DiscoverRow = memo(({ onSelect }) => {
                                 key={`${item.media_type}-${item.id}`}
                                 className="discover-card"
                                 onClick={() => onCardClick(item)}
+                                onMouseEnter={() => { if (item?.id) tmdb.getDetails(item.id, item.media_type === 'tv' ? 'series' : 'movie'); }}
                                 title={item.title || item.name}
                             >
                                 <div className="discover-card-poster-wrap">
@@ -228,7 +229,6 @@ const DiscoverRow = memo(({ onSelect }) => {
                                         >
                                             {inList ? <Check size={16} /> : <Plus size={16} />}
                                         </button>
-                                        <span className="discover-view-label">View Details</span>
                                     </div>
                                 </div>
                                 <div className="discover-card-details">

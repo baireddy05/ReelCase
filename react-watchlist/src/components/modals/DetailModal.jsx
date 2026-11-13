@@ -22,7 +22,7 @@ import {
     BookmarkCheck
 } from 'lucide-react';
 
-const DetailModal = ({ show, data, onClose }) => {
+const DetailModal = ({ show, data, type: propType, onClose }) => {
     const { 
         watchlist, 
         addToWatchlist, 
@@ -43,7 +43,18 @@ const DetailModal = ({ show, data, onClose }) => {
     const [castCanLeft, setCastCanLeft] = useState(false);
     const [castCanRight, setCastCanRight] = useState(false);
 
-    const isMovie = Boolean(data?.title || data?.original_title);
+    const isMovie = useMemo(() => {
+        if (propType) return propType === 'movie';
+        if (!data) return true;
+        if (data.media_type === 'tv' || data.media_type === 'series') return false;
+        if (data.media_type === 'movie') return true;
+        if (data.total_seasons !== undefined || data.number_of_seasons !== undefined || data.seasons !== undefined || data.first_air_date !== undefined) {
+            return false;
+        }
+        if (data.name && !data.title) return false;
+        return true;
+    }, [propType, data]);
+
     const type = isMovie ? 'movie' : 'series';
     const listType = isMovie ? 'movies' : 'series';
 
@@ -57,18 +68,24 @@ const DetailModal = ({ show, data, onClose }) => {
 
     // Regular seasons for TV
     const regularSeasons = useMemo(() => {
-        if (isMovie || !data?.seasons) return [];
-        return data.seasons
-            .filter(s => s.season_number > 0)
-            .map(s => ({
-                season_number: s.season_number,
-                episode_count: s.episode_count || 0,
-                name: s.name || `Season ${s.season_number}`
-            }));
-    }, [data?.seasons, isMovie]);
+        if (isMovie) return [];
+        if (data?.seasons && Array.isArray(data.seasons)) {
+            return data.seasons
+                .filter(s => s.season_number > 0)
+                .map(s => ({
+                    season_number: s.season_number,
+                    episode_count: s.episode_count || 0,
+                    name: s.name || `Season ${s.season_number}`
+                }));
+        }
+        if (data?.seasons_detail && Array.isArray(data.seasons_detail)) {
+            return data.seasons_detail;
+        }
+        return [];
+    }, [data?.seasons, data?.seasons_detail, isMovie]);
 
-    const totalSeasons = data?.number_of_seasons || regularSeasons.length || 1;
-    const totalEpisodes = data?.number_of_episodes || regularSeasons.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
+    const totalSeasons = data?.number_of_seasons || data?.total_seasons || regularSeasons.length || 1;
+    const totalEpisodes = data?.number_of_episodes || data?.total_episodes || regularSeasons.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
 
     // Body scroll lock
     useEffect(() => {
@@ -441,7 +458,11 @@ const DetailModal = ({ show, data, onClose }) => {
         currentActiveStatus = 'watching';
     }
 
-    const backdropUrl = data.backdrop_path ? getPosterUrl(data.backdrop_path, 'w1280') : null;
+    const backdropPath = data.backdrop_path || data.backdrop;
+    const posterPath = data.poster_path || data.poster;
+    const backdropUrl = backdropPath 
+        ? getPosterUrl(backdropPath, 'w1280') 
+        : (posterPath ? getPosterUrl(posterPath, 'w500') : null);
     const title = data.title || data.name;
 
     return (
@@ -513,7 +534,7 @@ const DetailModal = ({ show, data, onClose }) => {
                             {!isMovie && (
                                 <span className="meta-pill series-count">
                                     {totalSeasons} {totalSeasons === 1 ? 'Season' : 'Seasons'}
-                                    {totalEpisodes > 0 ? ` &bull; ${totalEpisodes} Eps` : ''}
+                                    {totalEpisodes > 0 ? ` • ${totalEpisodes} Eps` : ''}
                                 </span>
                             )}
                             {data.vote_average ? (

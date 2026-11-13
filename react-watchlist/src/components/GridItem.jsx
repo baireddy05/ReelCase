@@ -1,11 +1,30 @@
 import React, { memo } from 'react';
-import { getPosterUrl, handleImageError, getYear } from '../services/tmdb';
+import { tmdb, getPosterUrl, handleImageError, getYear } from '../services/tmdb';
 import { useWatchlist } from '../contexts/WatchlistContext';
 import { calculateSeriesProgress } from '../utils/seriesProgress';
 import { Eye, Trash2, CheckCircle2, Heart, Star, Check } from 'lucide-react';
 
 const GridItem = memo(({ item, type, onClick }) => {
     const { requestDelete, toggleWatched, toggleFavorite } = useWatchlist();
+
+    const handleCardClick = () => {
+        onClick(item, type);
+    };
+
+    const handleMouseEnter = () => {
+        if (item?.id) {
+            tmdb.getDetails(item.id, type);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            if (e.target === e.currentTarget) {
+                e.preventDefault();
+                onClick(item, type);
+            }
+        }
+    };
 
     const handleRemove = (e) => {
         e.stopPropagation();
@@ -28,8 +47,16 @@ const GridItem = memo(({ item, type, onClick }) => {
     const rating = item.vote_average ? Number(item.vote_average).toFixed(1) : null;
 
     return (
-        <div className={`grid-item ${item.watched ? 'item-watched' : ''} ${item.favorite ? 'is-fav' : ''}`}>
-            <div className="poster-link" onClick={() => onClick(item, type)} role="button" tabIndex={0}>
+        <div 
+            className={`grid-item ${item.watched ? 'item-watched' : ''} ${item.favorite ? 'is-fav' : ''}`}
+            onClick={handleCardClick}
+            onMouseEnter={handleMouseEnter}
+            onKeyDown={handleKeyDown}
+            role="button"
+            tabIndex={0}
+            aria-label={`View details for ${item.title || 'item'}`}
+        >
+            <div className="poster-link">
                 <img 
                     src={getPosterUrl(item, 'w500')} 
                     alt={item.title || ''} 
@@ -70,19 +97,15 @@ const GridItem = memo(({ item, type, onClick }) => {
                         <Check size={12} /> Watched
                     </div>
                 )}
-
-                <div className="grid-hover-overlay">
-                    <span>View Info</span>
-                </div>
             </div>
 
             <div className="item-content">
-                <div className="item-details" onClick={() => onClick(item, type)}>
+                <div className="item-details">
                     <div className="item-title" title={item.title}>{item.title}</div>
                     <div className="item-year">
                         {yearDisplay ? yearDisplay : 'N/A'}
-                        {isSeries && item.total_seasons ? ` &bull; ${item.total_seasons} ${item.total_seasons === 1 ? 'season' : 'seasons'}` : ''}
-                        {!isSeries && item.runtime ? ` &bull; ${item.runtime}m` : ''}
+                        {isSeries && item.total_seasons ? ` • ${item.total_seasons} ${item.total_seasons === 1 ? 'season' : 'seasons'}` : ''}
+                        {!isSeries && item.runtime ? ` • ${item.runtime}m` : ''}
                     </div>
                 </div>
 

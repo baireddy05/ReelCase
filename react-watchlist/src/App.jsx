@@ -7,6 +7,7 @@ import SeriesProgressCard from './components/SeriesProgressCard';
 import StatsBar from './components/StatsBar';
 import DiscoverRow from './components/DiscoverRow';
 import Toaster from './components/Toaster';
+import DetailModal from './components/modals/DetailModal';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
@@ -30,7 +31,6 @@ import {
 } from 'lucide-react';
 
 const AuthModal = lazy(() => import('./components/modals/AuthModal'));
-const DetailModal = lazy(() => import('./components/modals/DetailModal'));
 const ConfirmModal = lazy(() => import('./components/modals/ConfirmModal'));
 
 function App() {
@@ -45,6 +45,7 @@ function App() {
     );
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [detailData, setDetailData] = useState(null);
+    const [detailType, setDetailType] = useState('movie');
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [sortBy, setSortBy] = useState('added'); // 'added' | 'title_asc' | 'title_desc' | 'newest' | 'oldest' | 'rating'
     const [showExportMenu, setShowExportMenu] = useState(false);
@@ -81,21 +82,57 @@ function App() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [showDetailModal, showAuthModal]);
 
-    const handleSelectSearchItem = useCallback(async (id, type) => {
-        const data = await tmdb.getDetails(id, type);
-        if (!data) return;
-        setDetailData(data);
-        setShowDetailModal(true);
-        history.pushState({ modal: 'detail' }, '');
+    const handleSelectSearchItem = useCallback((id, type, initialItem) => {
+        const resolvedType = type === 'tv' || type === 'series' ? 'series' : 'movie';
+        setDetailType(resolvedType);
+
+        if (initialItem) {
+            setDetailData({
+                ...initialItem,
+                media_type: resolvedType === 'series' ? 'tv' : 'movie'
+            });
+            setShowDetailModal(true);
+            history.pushState({ modal: 'detail' }, '');
+        }
+
+        tmdb.getDetails(id, resolvedType).then(data => {
+            if (!data) return;
+            setDetailData(prev => {
+                if (!initialItem || (prev && String(prev.id) === String(id))) {
+                    return { ...(prev || {}), ...data };
+                }
+                return prev;
+            });
+            if (!initialItem) {
+                setShowDetailModal(true);
+                history.pushState({ modal: 'detail' }, '');
+            }
+        });
     }, []);
 
-    const handleGridItemClick = useCallback(async (item, forcedType) => {
-        const type = forcedType || (item.total_seasons !== undefined ? 'series' : 'movie');
-        const data = await tmdb.getDetails(item.id, type);
-        if (!data) return;
-        setDetailData(data);
+    const handleGridItemClick = useCallback((item, forcedType) => {
+        const type = forcedType || (item.total_seasons !== undefined || item.media_type === 'tv' || item.first_air_date ? 'series' : 'movie');
+        
+        // 1. Instant optimistic modal open (0ms latency!)
+        setDetailType(type);
+        setDetailData({
+            ...item,
+            media_type: type === 'series' ? 'tv' : 'movie'
+        });
         setShowDetailModal(true);
         history.pushState({ modal: 'detail' }, '');
+
+        // 2. Background enrich from TMDB cache or network
+        tmdb.getDetails(item.id, type).then(fullData => {
+            if (fullData) {
+                setDetailData(prev => {
+                    if (prev && String(prev.id) === String(item.id)) {
+                        return { ...prev, ...fullData };
+                    }
+                    return prev;
+                });
+            }
+        });
     }, []);
 
     const handleCloseDetail = useCallback(() => {
@@ -788,9 +825,10 @@ function filterTitles(query){
             <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
             <Toaster />
             
+            <DetailModal show={showDetailModal} data={detailData} type={detailType} onClose={handleCloseDetail} />
             <Suspense fallback={null}>
                 <AuthModal show={showAuthModal} onClose={handleCloseAuth} />
-                <DetailModal show={showDetailModal} data={detailData} onClose={handleCloseDetail} />
+                
                 <ConfirmModal 
                     show={deleteModalState?.show}
                     item={deleteModalState?.item}

@@ -102,7 +102,7 @@ const SeriesProgressCard = memo(({ item, onClick }) => {
     };
 
     return (
-        <div className={`watching-card ${item.favorite ? 'is-favorite' : ''}`}>
+        <div className={`watching-card ${item.favorite ? 'is-favorite' : ''}`} onMouseEnter={handleMouseEnter}>
             <div className="watching-poster-wrapper" onClick={() => onClick(item, 'series')}>
                 <img 
                     src={getPosterUrl(item, 'w500')} 
@@ -121,9 +121,6 @@ const SeriesProgressCard = memo(({ item, onClick }) => {
                 >
                     <Heart size={15} fill={item.favorite ? "currentColor" : "none"} />
                 </button>
-                <div className="watching-poster-overlay">
-                    <span>View Info</span>
-                </div>
             </div>
 
             <div className="watching-details">

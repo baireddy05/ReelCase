@@ -73,7 +73,7 @@ const SearchBar = ({ onSelect }) => {
         setIsActive(false);
         setQuery('');
         setHighlightedIndex(-1);
-        onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie');
+        onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie', item);
     }, [onSelect]);
 
     const handleClear = useCallback(() => {
@@ -119,7 +119,7 @@ const SearchBar = ({ onSelect }) => {
     const handleQuickAdd = async (e, item) => {
         e.stopPropagation();
         if (!user) {
-            onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie');
+            onSelect(item.id, item.media_type === 'tv' ? 'series' : 'movie', item);
             return;
         }
         await addToWatchlist(item, item.media_type === 'tv' ? 'series' : 'movie', 'plan_to_watch');
@@ -174,6 +174,7 @@ const SearchBar = ({ onSelect }) => {
                                         key={`${item.media_type}-${item.id}`} 
                                         className={`search-result-item ${isHighlighted ? 'highlighted' : ''}`}
                                         onClick={() => handleSelect(item)}
+                                        onMouseEnter={() => { setHighlightedIndex(index); if (item?.id) tmdb.getDetails(item.id, item.media_type === 'tv' ? 'series' : 'movie'); }}
                                         role="option"
                                         aria-selected={isHighlighted}
                                     >
