@@ -13,9 +13,12 @@ const Header = ({ setShowAuthModal, isDarkMode, setIsDarkMode }) => {
         }
     }, [isDarkMode]);
 
+    const displayName = user?.displayName || user?.email?.split('@')[0] || '';
+    const initial = displayName ? displayName.charAt(0).toUpperCase() : 'U';
+
     return (
         <header>
-            <div className="brand-logo">
+            <div className="brand-logo" tabIndex={0} role="banner">
                 <img 
                     src="/logo.svg" 
                     alt="Reelcase logo" 
@@ -28,23 +31,50 @@ const Header = ({ setShowAuthModal, isDarkMode, setIsDarkMode }) => {
                         e.currentTarget.src = '/logo.png';
                     }}
                 />
-                <h1>Reelcase</h1>
+                <div className="brand-title-wrap">
+                    <h1>Reelcase</h1>
+                    <span className="brand-badge">Tracker</span>
+                </div>
             </div>
+
             <div className="header-actions">
                 <button 
+                    type="button"
                     className="dark-mode-toggle" 
                     onClick={() => setIsDarkMode(!isDarkMode)}
-                    title="Toggle Dark Mode"
+                    title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                    aria-label="Toggle Dark Mode"
                 >
-                    {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
                 </button>
+
                 {user ? (
-                    <button className="auth-btn outline" onClick={logout}>
-                        <LogOut size={16} style={{ marginRight: '8px' }} /> Logout
-                    </button>
+                    <div className="user-profile-header">
+                        <div className="user-avatar" title={`Logged in as ${user.email}`}>
+                            {user.photoURL ? (
+                                <img src={user.photoURL} alt={displayName} className="user-avatar-img" />
+                            ) : (
+                                <span>{initial}</span>
+                            )}
+                        </div>
+                        <button 
+                            type="button" 
+                            className="auth-btn outline logout-btn" 
+                            onClick={logout}
+                            title="Sign out of Reelcase"
+                        >
+                            <LogOut size={15} /> 
+                            <span className="btn-label">Logout</span>
+                        </button>
+                    </div>
                 ) : (
-                    <button className="auth-btn outline" onClick={() => setShowAuthModal(true)}>
-                        <LogIn size={16} style={{ marginRight: '8px' }} /> Login
+                    <button 
+                        type="button" 
+                        className="auth-btn outline login-btn" 
+                        onClick={() => setShowAuthModal(true)}
+                    >
+                        <LogIn size={15} /> 
+                        <span className="btn-label">Login</span>
                     </button>
                 )}
             </div>

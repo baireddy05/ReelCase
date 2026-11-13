@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import SearchBar from './components/SearchBar';
@@ -10,7 +10,24 @@ import Toaster from './components/Toaster';
 import { useAuth } from './contexts/AuthContext';
 import { useWatchlist } from './contexts/WatchlistContext';
 import { tmdb } from './services/tmdb';
-import { PlayCircle, Clock, CheckCircle2, Film, Tv, Sparkles, Compass, Download } from 'lucide-react';
+import { notify } from './utils/notifications';
+import { 
+    PlayCircle, 
+    Clock, 
+    CheckCircle2, 
+    Film, 
+    Tv, 
+    Sparkles, 
+    Compass, 
+    Upload, 
+    Heart, 
+    Search as SearchIcon, 
+    X, 
+    SlidersHorizontal,
+    FileJson,
+    FileCode,
+    Check
+} from 'lucide-react';
 
 const AuthModal = lazy(() => import('./components/modals/AuthModal'));
 const DetailModal = lazy(() => import('./components/modals/DetailModal'));
@@ -18,23 +35,26 @@ const ConfirmModal = lazy(() => import('./components/modals/ConfirmModal'));
 
 function App() {
     const { user } = useAuth();
-    const { watchlist, deleteModalState, cancelDelete, confirmDelete } = useWatchlist();
-    const [activeTab, setActiveTab] = useState('movies');
-    const [seriesFilter, setSeriesFilter] = useState('all'); // 'all' | 'watching' | 'plan' | 'completed'
-    const [moviesFilter, setMoviesFilter] = useState('all'); // 'all' | 'unwatched' | 'watched'
+    const { watchlist, deleteModalState, cancelDelete, confirmDelete, importWatchlist } = useWatchlist();
+    const [activeTab, setActiveTab] = useState('movies'); // 'movies' | 'series' | 'discover'
+    const [seriesFilter, setSeriesFilter] = useState('all'); // 'all' | 'watching' | 'plan' | 'completed' | 'favorites'
+    const [moviesFilter, setMoviesFilter] = useState('all'); // 'all' | 'unwatched' | 'watched' | 'favorites'
+    const [librarySearch, setLibrarySearch] = useState('');
     const [isDarkMode, setIsDarkMode] = useState(
         () => localStorage.getItem('isDarkMode') !== 'false'
     );
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [detailData, setDetailData] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
-    const [sortBy, setSortBy] = useState('added'); // added | title | newest | oldest
+    const [sortBy, setSortBy] = useState('added'); // 'added' | 'title_asc' | 'title_desc' | 'newest' | 'oldest' | 'rating'
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         localStorage.setItem('isDarkMode', isDarkMode);
     }, [isDarkMode]);
 
-    // Press "/" to jump to search
+    // Global "/" shortcut to jump to main TMDb search
     useEffect(() => {
         const onKey = (e) => {
             const tag = document.activeElement?.tagName;
@@ -47,7 +67,7 @@ function App() {
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    // Handle History API for Modals
+    // Handle Mobile Hardware / Browser Back Gesture via History API
     useEffect(() => {
         const handlePopState = () => {
             if (showDetailModal) {
@@ -70,7 +90,7 @@ function App() {
     }, []);
 
     const handleGridItemClick = useCallback(async (item, forcedType) => {
-        const type = forcedType || 'movie';
+        const type = forcedType || (item.total_seasons !== undefined ? 'series' : 'movie');
         const data = await tmdb.getDetails(item.id, type);
         if (!data) return;
         setDetailData(data);
@@ -97,90 +117,206 @@ function App() {
         history.pushState({ modal: 'auth' }, '');
     }, []);
 
-    const exportLibrary = useCallback(() => {
+    // Export library as an interactive standalone HTML page with search & filter
+    const exportInteractiveHtml = useCallback(() => {
+        setShowExportMenu(false);
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const yearOf = (i) => String(i.year || i.release_date || i.first_air_date || '').slice(0, 4);
         const posterOf = (i) => {
             const p = i.poster_path || i.poster || '';
             if (!p) return '';
-            const path = String(p).startsWith('http') ? p : `https://image.tmdb.org/t/p/w200${String(p).startsWith('/') ? p : '/' + p}`;
-            return path;
+            return String(p).startsWith('http') ? p : `https://image.tmdb.org/t/p/w300${String(p).startsWith('/') ? p : '/' + p}`;
         };
-        const card = (i, extra = '') => `
-            <div class="card">
-                ${posterOf(i) ? `<img loading="lazy" src="${posterOf(i)}" alt="">` : `<div class="noimg">Reelcase</div>`}
+        const card = (i, extra = '', cat = '') => `
+            <div class="card" data-title="${esc((i.title || '').toLowerCase())}" data-category="${cat}">
+                ${posterOf(i) ? `<img loading="lazy" src="${posterOf(i)}" alt="${esc(i.title || '')}">` : `<div class="noimg">Reelcase</div>`}
                 <div class="t">${esc(i.title || 'Untitled')}</div>
                 <div class="y">${esc(yearOf(i))}${extra ? ` &bull; ${esc(extra)}` : ''}</div>
             </div>`;
         const seriesExtra = (s) => s.watched ? 'Completed' : (s.currentEpisode > 0 ? `S${s.currentSeason || 1} E${s.currentEpisode}` : 'Plan to watch');
-        const section = (title, inner) => inner ? `<h2>${title}</h2><div class="grid">${inner}</div>` : '';
+        const section = (title, inner) => inner ? `<section><h2>${title}</h2><div class="grid">${inner}</div></section>` : '';
 
         const movies = watchlist.movies;
         const series = watchlist.series;
-        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+        const exportDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+        const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Reelcase Library</title>
+<title>Reelcase Library &bull; ${exportDate}</title>
 <style>
-body{font-family:Inter,-apple-system,'Segoe UI',Roboto,sans-serif;margin:0;background:#fafafa;color:#1a1a1a}
-.wrap{max-width:1000px;margin:0 auto;padding:32px 20px}
-h1{font-size:1.8rem;letter-spacing:-.02em;margin:0}
-.sub{color:#737373;font-size:.9rem;margin:6px 0 24px}
-h2{font-size:1.15rem;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e5e5e5}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
-.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden}
+:root{--bg:#0b0d14;--card:#141724;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--sub:#94a3b8;--accent:#6366f1}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;background:var(--bg);color:var(--text);line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:36px 20px}
+header{margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px}
+h1{font-size:2rem;letter-spacing:-.02em;margin:0}
+.sub{color:var(--sub);font-size:.9rem;margin:6px 0 0}
+.search-box{padding:10px 14px;border-radius:10px;background:var(--card);border:1px solid var(--border);color:#fff;width:100%;max-width:320px;font-size:.9rem}
+section{margin-bottom:36px}
+h2{font-size:1.2rem;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);color:#e2e8f0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:transform .2s}
+.card:hover{transform:translateY(-3px)}
 .card img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block}
-.noimg{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;color:#a3a3a3;font-size:.8rem;background:#f5f5f5}
-.t{font-size:.82rem;font-weight:700;padding:8px 8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.y{font-size:.74rem;color:#737373;padding:2px 8px 10px}
-@media(prefers-color-scheme:dark){body{background:#0a0a0a;color:#e5e5e5}.card{background:#141414;border-color:#262626}.noimg{background:#1a1a1a}h2{border-color:#262626}.sub{color:#a3a3a3}.y{color:#a3a3a3}}
-</style></head><body><div class="wrap">
-<h1>Reelcase Library</h1>
-<p class="sub">${movies.length} movies &bull; ${series.length} series &bull; exported ${new Date().toLocaleDateString()}</p>
-${section(`Movies to Watch (${movies.filter(m => !m.watched).length})`, movies.filter(m => !m.watched).map(m => card(m)).join(''))}
-${section(`Watched Movies (${movies.filter(m => m.watched).length})`, movies.filter(m => m.watched).map(m => card(m)).join(''))}
-${section(`Currently Watching (${series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).length})`, series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).map(s => card(s, seriesExtra(s))).join(''))}
-${section(`Plan to Watch (${series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).length})`, series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).map(s => card(s, seriesExtra(s))).join(''))}
-${section(`Completed Series (${series.filter(s => s.watched || s.status === 'completed').length})`, series.filter(s => s.watched || s.status === 'completed').map(s => card(s, seriesExtra(s))).join(''))}
-</div></body></html>`;
+.noimg{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:.8rem;background:rgba(255,255,255,0.03)}
+.t{font-size:.82rem;font-weight:600;padding:8px 8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.y{font-size:.72rem;color:var(--sub);padding:2px 8px 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>Reelcase Library</h1>
+    <p class="sub">${movies.length} movies &bull; ${series.length} series &bull; Exported ${exportDate}</p>
+  </div>
+  <input type="text" class="search-box" id="q" placeholder="Filter titles..." oninput="filterTitles(this.value)">
+</header>
+<main id="libraryContent">
+${section(`Movies to Watch (${movies.filter(m => !m.watched).length})`, movies.filter(m => !m.watched).map(m => card(m, '', 'unwatched')).join(''))}
+${section(`Watched Movies (${movies.filter(m => m.watched).length})`, movies.filter(m => m.watched).map(m => card(m, '', 'watched')).join(''))}
+${section(`Currently Watching (${series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).length})`, series.filter(s => !s.watched && (s.status === 'watching' || s.currentEpisode > 0)).map(s => card(s, seriesExtra(s), 'watching')).join(''))}
+${section(`Plan to Watch (${series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).length})`, series.filter(s => !s.watched && s.status !== 'watching' && !s.currentEpisode).map(s => card(s, seriesExtra(s), 'plan')).join(''))}
+${section(`Completed Series (${series.filter(s => s.watched || s.status === 'completed').length})`, series.filter(s => s.watched || s.status === 'completed').map(s => card(s, seriesExtra(s), 'completed')).join(''))}
+</main>
+</div>
+<script>
+function filterTitles(query){
+  var q = (query || '').toLowerCase().trim();
+  var cards = document.querySelectorAll('.card');
+  cards.forEach(function(c){
+    var title = c.getAttribute('data-title') || '';
+    if(!q || title.indexOf(q) !== -1){
+      c.style.display = '';
+    } else {
+      c.style.display = 'none';
+    }
+  });
+}
+</script>
+</body>
+</html>`;
 
         const blob = new Blob([html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'reelcase-library.html';
+        a.download = `reelcase-library-${new Date().toISOString().slice(0, 10)}.html`;
         a.click();
         URL.revokeObjectURL(url);
+        notify('Library exported as interactive HTML!', 'success');
     }, [watchlist]);
 
+    // Export raw JSON backup
+    const exportJsonBackup = useCallback(() => {
+        setShowExportMenu(false);
+        const payload = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            movies: watchlist.movies,
+            series: watchlist.series
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reelcase-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        notify('Library backup exported as JSON!', 'success');
+    }, [watchlist]);
+
+    // Import JSON backup
+    const handleFileImport = useCallback((e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const parsed = JSON.parse(event.target?.result);
+                await importWatchlist(parsed);
+            } catch {
+                notify('Invalid JSON backup file.', 'error');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    }, [importWatchlist]);
+
+    // Sorting algorithm
     const sortItems = useCallback((items) => {
         const arr = [...items];
-        if (sortBy === 'title') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-        else if (sortBy === 'newest' || sortBy === 'oldest') {
+        if (sortBy === 'title_asc') {
+            arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        } else if (sortBy === 'title_desc') {
+            arr.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+        } else if (sortBy === 'newest' || sortBy === 'oldest') {
             const yearOf = (i) => parseInt(String(i.year || i.release_date || i.first_air_date || '0').slice(0, 4)) || 0;
             arr.sort((a, b) => sortBy === 'newest' ? yearOf(b) - yearOf(a) : yearOf(a) - yearOf(b));
+        } else if (sortBy === 'rating') {
+            arr.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
         }
         return arr;
     }, [sortBy]);
 
-    // Series categorization (mutually exclusive, memoized: single O(n) pass each)
-    const { watchingSeries, planToWatchSeries, completedSeries, unwatchedMovies, watchedMovies } = useMemo(() => {
+    // In-library text search filter
+    const applyLibrarySearch = useCallback((items) => {
+        if (!librarySearch.trim()) return items;
+        const q = librarySearch.trim().toLowerCase();
+        return items.filter(i => {
+            const titleMatch = (i.title || '').toLowerCase().includes(q);
+            const yearMatch = String(i.year || i.release_date || i.first_air_date || '').includes(q);
+            return titleMatch || yearMatch;
+        });
+    }, [librarySearch]);
+
+    // Categorization
+    const { 
+        watchingSeries, 
+        planToWatchSeries, 
+        completedSeries, 
+        favoriteSeries,
+        unwatchedMovies, 
+        watchedMovies,
+        favoriteMovies
+    } = useMemo(() => {
         const watching = [];
         const plan = [];
         const completed = [];
+        const favSeries = [];
+
         for (const s of watchlist.series) {
+            if (s.favorite) favSeries.push(s);
             if (s.watched === true || s.status === 'completed') completed.push(s);
             else if (s.status === 'watching' || (s.currentEpisode && s.currentEpisode > 0)) watching.push(s);
             else plan.push(s);
         }
+
         const unwatched = [];
         const watched = [];
+        const favMovies = [];
+
         for (const m of watchlist.movies) {
+            if (m.favorite) favMovies.push(m);
             if (m.watched) watched.push(m);
             else unwatched.push(m);
         }
-        const sort = (arr) => sortItems(arr);
-        return { watchingSeries: sort(watching), planToWatchSeries: sort(plan), completedSeries: sort(completed), unwatchedMovies: sort(unwatched), watchedMovies: sort(watched) };
-    }, [watchlist, sortItems]);
+
+        const processList = (arr) => sortItems(applyLibrarySearch(arr));
+
+        return { 
+            watchingSeries: processList(watching), 
+            planToWatchSeries: processList(plan), 
+            completedSeries: processList(completed), 
+            favoriteSeries: processList(favSeries),
+            unwatchedMovies: processList(unwatched), 
+            watchedMovies: processList(watched),
+            favoriteMovies: processList(favMovies)
+        };
+    }, [watchlist, sortItems, applyLibrarySearch]);
 
     return (
         <div className="container">
@@ -196,11 +332,10 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                 <StatsBar
                     movies={watchlist.movies}
                     series={watchlist.series}
-                    watchingCount={watchingSeries.length}
-                    completedCount={completedSeries.length}
                 />
             )}
 
+            {/* Desktop Navigation Tabs */}
             <div className="tabs desktop-only" role="tablist" aria-label="Library sections">
                 <button 
                     role="tab"
@@ -208,7 +343,8 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                     className={`tab-button ${activeTab === 'movies' ? 'active' : ''}`}
                     onClick={() => setActiveTab('movies')}
                 >
-                    <Film size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Movies ({watchlist.movies.length})
+                    <Film size={17} /> 
+                    <span>Movies ({watchlist.movies.length})</span>
                 </button>
                 <button 
                     role="tab"
@@ -216,7 +352,8 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                     className={`tab-button ${activeTab === 'series' ? 'active' : ''}`}
                     onClick={() => setActiveTab('series')}
                 >
-                    <Tv size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Series ({watchlist.series.length})
+                    <Tv size={17} /> 
+                    <span>Series ({watchlist.series.length})</span>
                 </button>
                 <button 
                     role="tab"
@@ -224,18 +361,32 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                     className={`tab-button ${activeTab === 'discover' ? 'active' : ''}`}
                     onClick={() => setActiveTab('discover')}
                 >
-                    <Compass size={18} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} /> Discover
+                    <Compass size={17} /> 
+                    <span>Discover</span>
                 </button>
             </div>
 
             <main>
                 {!user ? (
                     <div className="auth-prompt">
-                        <img src="/logo.svg" alt="Reelcase logo" className="auth-prompt-logo" width={72} height={72} />
-                        <h2>Welcome to Reelcase</h2>
-                        <p className="empty-hint">Please login to view your watchlist</p>
-                        <button className="auth-btn email-btn" onClick={openAuthModal}>
-                            Login
+                        <div className="auth-prompt-badge">
+                            <Sparkles size={18} />
+                            <span>Your Personal Entertainment Tracker</span>
+                        </div>
+                        <h2>Track movies, binge smarter, and stay synced everywhere.</h2>
+                        <p className="auth-prompt-description">
+                            Reelcase tracks your movies, remembers exact season and episode progress across devices, and shows you where titles are streaming.
+                        </p>
+                        
+                        <div className="auth-prompt-features">
+                            <div className="feature-pill"><Check size={14} /> Real-time Cloud Sync</div>
+                            <div className="feature-pill"><Check size={14} /> 1-Click Episode Stepper</div>
+                            <div className="feature-pill"><Check size={14} /> OTT Where-to-Watch</div>
+                            <div className="feature-pill"><Check size={14} /> Offline HTML Export</div>
+                        </div>
+
+                        <button className="auth-btn email-btn auth-hero-btn" onClick={openAuthModal}>
+                            Sign In / Join Reelcase
                         </button>
                     </div>
                 ) : (
@@ -244,52 +395,132 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                         <div className={`bucket-list ${activeTab === 'movies' ? 'active' : ''}`}>
                             {watchlist.movies.length > 0 && (
                                 <div className="toolbar-row">
-                                <div className="sub-filters-container">
-                                    <button 
-                                        className={`sub-filter-pill ${moviesFilter === 'all' ? 'active' : ''}`}
-                                        onClick={() => setMoviesFilter('all')}
-                                    >
-                                        All ({watchlist.movies.length})
-                                    </button>
-                                    <button 
-                                        className={`sub-filter-pill ${moviesFilter === 'unwatched' ? 'active' : ''}`}
-                                        onClick={() => setMoviesFilter('unwatched')}
-                                    >
-                                        To Watch ({unwatchedMovies.length})
-                                    </button>
-                                    <button 
-                                        className={`sub-filter-pill ${moviesFilter === 'watched' ? 'active' : ''}`}
-                                        onClick={() => setMoviesFilter('watched')}
-                                    >
-                                        Watched ({watchedMovies.length})
-                                    </button>
-                                </div>
-                                <div className="toolbar-actions">
-                                    <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort items">
-                                        <option value="added">Recently added</option>
-                                        <option value="title">Title A–Z</option>
-                                        <option value="newest">Newest</option>
-                                        <option value="oldest">Oldest</option>
-                                    </select>
-                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as a styled HTML page">
-                                        <Download size={15} /> Export
-                                    </button>
-                                </div>
+                                    <div className="sub-filters-container">
+                                        <button 
+                                            className={`sub-filter-pill ${moviesFilter === 'all' ? 'active' : ''}`}
+                                            onClick={() => setMoviesFilter('all')}
+                                        >
+                                            All ({watchlist.movies.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill ${moviesFilter === 'unwatched' ? 'active' : ''}`}
+                                            onClick={() => setMoviesFilter('unwatched')}
+                                        >
+                                            To Watch ({unwatchedMovies.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill ${moviesFilter === 'watched' ? 'active' : ''}`}
+                                            onClick={() => setMoviesFilter('watched')}
+                                        >
+                                            Watched ({watchedMovies.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill fav-pill ${moviesFilter === 'favorites' ? 'active' : ''}`}
+                                            onClick={() => setMoviesFilter('favorites')}
+                                        >
+                                            <Heart size={13} fill={moviesFilter === 'favorites' ? "currentColor" : "none"} />
+                                            Favorites ({favoriteMovies.length})
+                                        </button>
+                                    </div>
+
+                                    <div className="toolbar-actions">
+                                        {/* In-Library Search Input */}
+                                        <div className="library-search-wrap">
+                                            <SearchIcon size={14} className="lib-search-icon" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Filter movies..." 
+                                                value={librarySearch}
+                                                onChange={e => setLibrarySearch(e.target.value)}
+                                                className="library-search-input"
+                                            />
+                                            {librarySearch && (
+                                                <button 
+                                                    type="button" 
+                                                    className="clear-lib-search" 
+                                                    onClick={() => setLibrarySearch('')}
+                                                    aria-label="Clear filter"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <select 
+                                            className="sort-select" 
+                                            value={sortBy} 
+                                            onChange={(e) => setSortBy(e.target.value)} 
+                                            aria-label="Sort movies"
+                                        >
+                                            <option value="added">Recently Added</option>
+                                            <option value="title_asc">Title A &rarr; Z</option>
+                                            <option value="title_desc">Title Z &rarr; A</option>
+                                            <option value="newest">Release: Newest</option>
+                                            <option value="oldest">Release: Oldest</option>
+                                            <option value="rating">TMDb Rating</option>
+                                        </select>
+
+                                        {/* Export & Import Dropdown */}
+                                        <div className="export-menu-container">
+                                            <button 
+                                                className="toolbar-btn" 
+                                                onClick={() => setShowExportMenu(!showExportMenu)}
+                                                title="Backup, export, or import library"
+                                            >
+                                                <SlidersHorizontal size={14} /> Portability
+                                            </button>
+
+                                            {showExportMenu && (
+                                                <div className="export-dropdown-menu">
+                                                    <button type="button" onClick={exportInteractiveHtml}>
+                                                        <FileCode size={14} /> Export Interactive HTML
+                                                    </button>
+                                                    <button type="button" onClick={exportJsonBackup}>
+                                                        <FileJson size={14} /> Export JSON Backup
+                                                    </button>
+                                                    <button type="button" onClick={() => fileInputRef.current?.click()}>
+                                                        <Upload size={14} /> Restore from JSON
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
                             {watchlist.movies.length === 0 ? (
-                                <div className="list-category">
-                                    <h2>Your Movies</h2>
-                                    <p className="empty-msg">No movies in your list yet. Start searching above!</p>
+                                <div className="list-category empty-library-view">
+                                    <Film size={40} className="empty-cat-icon" />
+                                    <h2>Your Movie Library is Empty</h2>
+                                    <p className="empty-msg">Search above to add movies or explore what's trending in Discover!</p>
+                                    <button className="auth-btn email-btn inline-btn" onClick={() => setActiveTab('discover')}>
+                                        <Compass size={16} /> Explore Discover
+                                    </button>
                                 </div>
                             ) : (
                                 <>
+                                    {moviesFilter === 'favorites' && (
+                                        <div className="list-category">
+                                            <h2>Favorite Movies ({favoriteMovies.length})</h2>
+                                            {favoriteMovies.length === 0 ? (
+                                                <p className="empty-msg">No favorite movies marked yet. Tap the heart icon on any card!</p>
+                                            ) : (
+                                                <div className="item-grid">
+                                                    {favoriteMovies.map(movie => (
+                                                        <GridItem key={movie.id} item={movie} type="movie" onClick={handleGridItemClick} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {(moviesFilter === 'all' || moviesFilter === 'unwatched') && (
                                         <div className="list-category">
                                             <h2>To Watch ({unwatchedMovies.length})</h2>
                                             {unwatchedMovies.length === 0 ? (
-                                                <p className="empty-msg">No unwatched movies.</p>
+                                                <p className="empty-msg">
+                                                    {librarySearch ? `No unwatched movies matching "${librarySearch}"` : 'No unwatched movies in your list.'}
+                                                </p>
                                             ) : (
                                                 <div className="item-grid">
                                                     {unwatchedMovies.map(movie => (
@@ -304,7 +535,9 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                                         <div className="list-category">
                                             <h2>Watched Movies ({watchedMovies.length})</h2>
                                             {watchedMovies.length === 0 ? (
-                                                <p className="empty-msg">No watched movies yet.</p>
+                                                <p className="empty-msg">
+                                                    {librarySearch ? `No watched movies matching "${librarySearch}"` : 'No watched movies yet.'}
+                                                </p>
                                             ) : (
                                                 <div className="item-grid">
                                                     {watchedMovies.map(movie => (
@@ -322,56 +555,139 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                         <div className={`bucket-list ${activeTab === 'series' ? 'active' : ''}`}>
                             {watchlist.series.length > 0 && (
                                 <div className="toolbar-row">
-                                <div className="sub-filters-container">
-                                    <button 
-                                        className={`sub-filter-pill ${seriesFilter === 'all' ? 'active' : ''}`}
-                                        onClick={() => setSeriesFilter('all')}
-                                    >
-                                        All Series ({watchlist.series.length})
-                                    </button>
-                                    <button 
-                                        className={`sub-filter-pill highlight ${seriesFilter === 'watching' ? 'active' : ''}`}
-                                        onClick={() => setSeriesFilter('watching')}
-                                    >
-                                        <PlayCircle size={15} style={{ verticalAlign: 'text-bottom', marginRight: '4px' }} />
-                                        Currently Watching ({watchingSeries.length})
-                                    </button>
-                                    <button 
-                                        className={`sub-filter-pill ${seriesFilter === 'plan' ? 'active' : ''}`}
-                                        onClick={() => setSeriesFilter('plan')}
-                                    >
-                                        <Clock size={15} style={{ verticalAlign: 'text-bottom', marginRight: '4px' }} />
-                                        Plan to Watch ({planToWatchSeries.length})
-                                    </button>
-                                    <button 
-                                        className={`sub-filter-pill ${seriesFilter === 'completed' ? 'active' : ''}`}
-                                        onClick={() => setSeriesFilter('completed')}
-                                    >
-                                        <CheckCircle2 size={15} style={{ verticalAlign: 'text-bottom', marginRight: '4px' }} />
-                                        Completed ({completedSeries.length})
-                                    </button>
-                                </div>
-                                <div className="toolbar-actions">
-                                    <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort items">
-                                        <option value="added">Recently added</option>
-                                        <option value="title">Title A–Z</option>
-                                        <option value="newest">Newest</option>
-                                        <option value="oldest">Oldest</option>
-                                    </select>
-                                    <button className="toolbar-btn" onClick={exportLibrary} title="Export library as a styled HTML page">
-                                        <Download size={15} /> Export
-                                    </button>
-                                </div>
+                                    <div className="sub-filters-container">
+                                        <button 
+                                            className={`sub-filter-pill ${seriesFilter === 'all' ? 'active' : ''}`}
+                                            onClick={() => setSeriesFilter('all')}
+                                        >
+                                            All ({watchlist.series.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill highlight ${seriesFilter === 'watching' ? 'active' : ''}`}
+                                            onClick={() => setSeriesFilter('watching')}
+                                        >
+                                            <PlayCircle size={14} />
+                                            Watching ({watchingSeries.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill ${seriesFilter === 'plan' ? 'active' : ''}`}
+                                            onClick={() => setSeriesFilter('plan')}
+                                        >
+                                            <Clock size={14} />
+                                            Plan ({planToWatchSeries.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill ${seriesFilter === 'completed' ? 'active' : ''}`}
+                                            onClick={() => setSeriesFilter('completed')}
+                                        >
+                                            <CheckCircle2 size={14} />
+                                            Done ({completedSeries.length})
+                                        </button>
+                                        <button 
+                                            className={`sub-filter-pill fav-pill ${seriesFilter === 'favorites' ? 'active' : ''}`}
+                                            onClick={() => setSeriesFilter('favorites')}
+                                        >
+                                            <Heart size={13} fill={seriesFilter === 'favorites' ? "currentColor" : "none"} />
+                                            Favorites ({favoriteSeries.length})
+                                        </button>
+                                    </div>
+
+                                    <div className="toolbar-actions">
+                                        {/* In-Library Search Input */}
+                                        <div className="library-search-wrap">
+                                            <SearchIcon size={14} className="lib-search-icon" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Filter series..." 
+                                                value={librarySearch}
+                                                onChange={e => setLibrarySearch(e.target.value)}
+                                                className="library-search-input"
+                                            />
+                                            {librarySearch && (
+                                                <button 
+                                                    type="button" 
+                                                    className="clear-lib-search" 
+                                                    onClick={() => setLibrarySearch('')}
+                                                    aria-label="Clear filter"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <select 
+                                            className="sort-select" 
+                                            value={sortBy} 
+                                            onChange={(e) => setSortBy(e.target.value)} 
+                                            aria-label="Sort series"
+                                        >
+                                            <option value="added">Recently Added</option>
+                                            <option value="title_asc">Title A &rarr; Z</option>
+                                            <option value="title_desc">Title Z &rarr; A</option>
+                                            <option value="newest">Release: Newest</option>
+                                            <option value="oldest">Release: Oldest</option>
+                                            <option value="rating">TMDb Rating</option>
+                                        </select>
+
+                                        {/* Export & Import Dropdown */}
+                                        <div className="export-menu-container">
+                                            <button 
+                                                className="toolbar-btn" 
+                                                onClick={() => setShowExportMenu(!showExportMenu)}
+                                                title="Backup, export, or import library"
+                                            >
+                                                <SlidersHorizontal size={14} /> Portability
+                                            </button>
+
+                                            {showExportMenu && (
+                                                <div className="export-dropdown-menu">
+                                                    <button type="button" onClick={exportInteractiveHtml}>
+                                                        <FileCode size={14} /> Export Interactive HTML
+                                                    </button>
+                                                    <button type="button" onClick={exportJsonBackup}>
+                                                        <FileJson size={14} /> Export JSON Backup
+                                                    </button>
+                                                    <button type="button" onClick={() => fileInputRef.current?.click()}>
+                                                        <Upload size={14} /> Restore from JSON
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
                             {watchlist.series.length === 0 ? (
-                                <div className="list-category">
-                                    <h2>Your Series</h2>
-                                    <p className="empty-msg">No series in your list yet. Start searching above!</p>
+                                <div className="list-category empty-library-view">
+                                    <Tv size={40} className="empty-cat-icon" />
+                                    <h2>Your TV Series Tracker is Empty</h2>
+                                    <p className="empty-msg">Search above to track your favorite series and episodes!</p>
+                                    <button className="auth-btn email-btn inline-btn" onClick={() => setActiveTab('discover')}>
+                                        <Compass size={16} /> Explore Discover
+                                    </button>
                                 </div>
                             ) : (
                                 <>
+                                    {/* FAVORITES */}
+                                    {seriesFilter === 'favorites' && (
+                                        <div className="list-category">
+                                            <h2>Favorite TV Series ({favoriteSeries.length})</h2>
+                                            {favoriteSeries.length === 0 ? (
+                                                <p className="empty-msg">No favorite series marked yet. Tap the heart icon on any card!</p>
+                                            ) : (
+                                                <div className="watching-cards-grid">
+                                                    {favoriteSeries.map(series => (
+                                                        <SeriesProgressCard 
+                                                            key={series.id} 
+                                                            item={series} 
+                                                            onClick={handleGridItemClick} 
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* 1. CURRENTLY WATCHING SECTION */}
                                     {(seriesFilter === 'all' || seriesFilter === 'watching') && (
                                         <div className="list-category watching-category-section">
@@ -386,8 +702,8 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                                             {watchingSeries.length === 0 ? (
                                                 <div className="empty-watching-box">
                                                     <Sparkles size={28} className="empty-icon" />
-                                                    <p>You're not currently tracking any series.</p>
-                                                    <span className="empty-hint">Open any series to update and track your episode progress!</span>
+                                                    <p>You're not currently tracking any series episodes.</p>
+                                                    <span className="empty-hint">Open any series or click "Watching" in Plan to Watch to start tracking!</span>
                                                 </div>
                                             ) : (
                                                 <div className="watching-cards-grid">
@@ -452,13 +768,22 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
                             )}
                         </div>
 
-                        {/* DISCOVER TAB — trending, fetched only when opened */}
+                        {/* DISCOVER TAB */}
                         <div className={`bucket-list ${activeTab === 'discover' ? 'active' : ''}`}>
                             {activeTab === 'discover' && <DiscoverRow onSelect={handleSelectSearchItem} />}
                         </div>
                     </>
                 )}
             </main>
+
+            {/* Hidden File Input for JSON Backup Import */}
+            <input 
+                ref={fileInputRef}
+                type="file" 
+                accept=".json" 
+                style={{ display: 'none' }} 
+                onChange={handleFileImport}
+            />
 
             <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
             <Toaster />
@@ -479,4 +804,3 @@ ${section(`Completed Series (${series.filter(s => s.watched || s.status === 'com
 }
 
 export default App;
-

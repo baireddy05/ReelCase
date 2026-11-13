@@ -1,23 +1,164 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { tmdb, getPosterUrl, handleImageError, getYear } from '../../services/tmdb';
-import { useWatchlist, calculateSeriesProgress } from '../../contexts/WatchlistContext';
+import { useWatchlist } from '../../contexts/WatchlistContext';
+import { calculateSeriesProgress } from '../../utils/seriesProgress';
 import { useAuth } from '../../contexts/AuthContext';
-import { Check, Plus, Minus, CheckCircle2, Tv, Trash2, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { notify } from '../../utils/notifications';
+import { 
+    Check, 
+    Plus, 
+    Minus, 
+    CheckCircle2, 
+    Tv, 
+    Trash2, 
+    Play, 
+    ChevronLeft, 
+    ChevronRight, 
+    Heart, 
+    Share2, 
+    X, 
+    Star
+} from 'lucide-react';
 
 const DetailModal = ({ show, data, onClose }) => {
-    const { watchlist, addToWatchlist, updateSeriesProgress, requestDelete } = useWatchlist();
+    const { watchlist, addToWatchlist, updateSeriesProgress, requestDelete, toggleFavorite } = useWatchlist();
     const { user } = useAuth();
 
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [selectedEpisode, setSelectedEpisode] = useState(0);
     const [cast, setCast] = useState([]);
     const [trailerKey, setTrailerKey] = useState(null);
+    const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
     const castRef = useRef(null);
     const castDrag = useRef({ down: false, startX: 0, startScroll: 0, moved: false });
     const [castCanLeft, setCastCanLeft] = useState(false);
     const [castCanRight, setCastCanRight] = useState(false);
 
-    // Horizontal wheel + drag-to-scroll for the cast strip
+    const isMovie = Boolean(data?.title || data?.original_title);
+    const type = isMovie ? 'movie' : 'series';
+    const listType = isMovie ? 'movies' : 'series';
+
+    const watchlistItem = useMemo(() => {
+        if (!user || !data) return null;
+        return watchlist[listType]?.find(item => item.id === data.id) || null;
+    }, [user, data, watchlist, listType]);
+
+    const isInWatchlist = Boolean(watchlistItem);
+    const isFavorite = Boolean(watchlistItem?.favorite);
+
+    // Regular seasons for TV
+    const regularSeasons = useMemo(() => {
+        if (isMovie || !data?.seasons) return [];
+        return data.seasons
+            .filter(s => s.season_number > 0)
+            .map(s => ({
+                season_number: s.season_number,
+                episode_count: s.episode_count || 0,
+                name: s.name || `Season ${s.season_number}`
+            }));
+    }, [data?.seasons, isMovie]);
+
+    const totalSeasons = data?.number_of_seasons || regularSeasons.length || 1;
+    const totalEpisodes = data?.number_of_episodes || regularSeasons.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
+
+    // Body scroll lock
+    useEffect(() => {
+        if (show) {
+            document.body.classList.add('modal-open');
+        } else {
+            document.body.classList.remove('modal-open');
+            setIsPlayingTrailer(false);
+        }
+        return () => {
+            document.body.classList.remove('modal-open');
+        };
+    }, [show]);
+
+    // Sync season & episode state
+    const dataId = data?.id;
+    const itemSeason = watchlistItem?.currentSeason;
+    const itemEpisode = watchlistItem?.currentEpisode;
+
+    const inList = Boolean(watchlistItem);
+
+    useEffect(() => {
+        if (!dataId || isMovie) return;
+        if (inList) {
+            setSelectedSeason(itemSeason || 1);
+            setSelectedEpisode(itemEpisode !== undefined ? itemEpisode : 0);
+        } else {
+            setSelectedSeason(1);
+            setSelectedEpisode(0);
+        }
+    }, [dataId, itemSeason, itemEpisode, isMovie, inList]);
+
+    // Top-billed cast + trailer extraction
+    useEffect(() => {
+        if (!show || !dataId) return;
+        let cancelled = false;
+        setIsPlayingTrailer(false);
+
+        // If credits were already appended to data
+        if (data.credits?.cast) {
+            setCast(data.credits.cast.slice(0, 10));
+        } else {
+            setCast([]);
+            tmdb.getCredits(dataId, type).then(res => {
+                if (!cancelled && res?.cast) setCast(res.cast.slice(0, 10));
+            });
+        }
+
+        // If videos were already appended to data
+        const findTrailer = (videoList) => {
+            if (!videoList || !Array.isArray(videoList)) return null;
+            const vid = videoList.find(v => v.site === 'YouTube' && v.type === 'Trailer')
+                || videoList.find(v => v.site === 'YouTube' && v.type === 'Teaser')
+                || videoList.find(v => v.site === 'YouTube');
+            return vid ? vid.key : null;
+        };
+
+        if (data.videos?.results) {
+            setTrailerKey(findTrailer(data.videos.results));
+        } else {
+            setTrailerKey(null);
+            tmdb.getVideos(dataId, type).then(res => {
+                if (!cancelled && res?.results) {
+                    setTrailerKey(findTrailer(res.results));
+                }
+            });
+        }
+
+        return () => { cancelled = true; };
+    }, [show, dataId, type, data]);
+
+    // Esc closes modal
+    useEffect(() => {
+        if (!show) return;
+        const onKey = (e) => { 
+            if (e.key === 'Escape') {
+                if (isPlayingTrailer) {
+                    setIsPlayingTrailer(false);
+                } else {
+                    onClose();
+                }
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [show, isPlayingTrailer, onClose]);
+
+    // Cast carousel scroll & drag
+    const updateCastArrows = useCallback(() => {
+        const el = castRef.current;
+        if (!el) return;
+        setCastCanLeft(el.scrollLeft > 4);
+        setCastCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    }, []);
+
+    useEffect(() => { 
+        updateCastArrows(); 
+    }, [cast, updateCastArrows]);
+
     const onCastWheel = useCallback((e) => {
         const el = castRef.current;
         if (!el) return;
@@ -30,11 +171,13 @@ const DetailModal = ({ show, data, onClose }) => {
             }
         }
     }, []);
+
     const onCastPointerDown = (e) => {
         const el = castRef.current;
         if (!el) return;
         castDrag.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
     };
+
     const onCastPointerMove = (e) => {
         const d = castDrag.current;
         const el = castRef.current;
@@ -43,101 +186,39 @@ const DetailModal = ({ show, data, onClose }) => {
         if (Math.abs(dx) > 6) d.moved = true;
         if (d.moved) el.scrollLeft = d.startScroll - dx;
     };
+
     const endCastDrag = () => { castDrag.current.down = false; };
+    
     const onCastClick = (e) => {
-        if (castDrag.current.moved) { e.preventDefault(); castDrag.current.moved = false; }
+        if (castDrag.current.moved) { 
+            e.preventDefault(); 
+            castDrag.current.moved = false; 
+        }
     };
-    const updateCastArrows = useCallback(() => {
-        const el = castRef.current;
-        if (!el) return;
-        setCastCanLeft(el.scrollLeft > 4);
-        setCastCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-    }, []);
+
     const scrollCastBy = useCallback((dir) => {
         const el = castRef.current;
         if (!el) return;
-        el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 200), behavior: 'smooth' });
+        el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.75, 200), behavior: 'smooth' });
     }, []);
-
-    const isMovie = Boolean(data?.title);
-    const type = isMovie ? 'movie' : 'series';
-    const listType = isMovie ? 'movies' : 'series';
-
-    const watchlistItem = user && data ? watchlist[listType]?.find(item => item.id === data.id) : null;
-    const isInWatchlist = Boolean(watchlistItem);
-
-    // Regular seasons for TV
-    const regularSeasons = (!isMovie && data?.seasons)
-        ? data.seasons.filter(s => s.season_number > 0).map(s => ({
-            season_number: s.season_number,
-            episode_count: s.episode_count || 0,
-            name: s.name || `Season ${s.season_number}`
-        }))
-        : [];
-    const totalSeasons = data?.number_of_seasons || regularSeasons.length || 1;
-    const totalEpisodes = data?.number_of_episodes || regularSeasons.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
-
-    useEffect(() => {
-        if (show) {
-            document.body.classList.add('modal-open');
-        } else {
-            document.body.classList.remove('modal-open');
-        }
-    }, [show]);
-
-    // Sync season & episode state when data or watchlist changes
-    useEffect(() => {
-        if (!data || isMovie) return;
-        if (watchlistItem) {
-            setSelectedSeason(watchlistItem.currentSeason || 1);
-            setSelectedEpisode(watchlistItem.currentEpisode !== undefined ? watchlistItem.currentEpisode : 0);
-        } else {
-            setSelectedSeason(1);
-            setSelectedEpisode(0);
-        }
-    }, [data?.id, watchlistItem?.currentSeason, watchlistItem?.currentEpisode, isMovie]);
-
-    // Top-billed cast + trailer (cached, 1 request each per title)
-    useEffect(() => {
-        if (!show || !data) return;
-        let cancelled = false;
-        setCast([]);
-        setTrailerKey(null);
-        tmdb.getCredits(data.id, type).then(res => {
-            if (!cancelled && res?.cast) setCast(res.cast.slice(0, 8));
-        });
-        tmdb.getVideos(data.id, type).then(res => {
-            if (cancelled || !res?.results) return;
-            const vid = res.results.find(v => v.site === 'YouTube' && v.type === 'Trailer')
-                || res.results.find(v => v.site === 'YouTube' && v.type === 'Teaser')
-                || res.results.find(v => v.site === 'YouTube');
-            if (vid) setTrailerKey(vid.key);
-        });
-        return () => { cancelled = true; };
-    }, [show, data?.id]);
-
-    // Esc closes the popup
-    useEffect(() => {
-        if (!show) return;
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [show, onClose]);
-
-    // Refresh cast arrow states once photos load
-    useEffect(() => { updateCastArrows(); }, [cast, updateCastArrows]);
 
     if (!show || !data) return null;
 
-    // Prefer India catalog, fall back to US so the row is rarely empty
+    // Director or Creator extraction
+    const directors = isMovie
+        ? data.credits?.crew?.filter(c => c.job === 'Director').map(c => c.name).slice(0, 2).join(', ')
+        : data.created_by?.map(c => c.name).slice(0, 2).join(', ') || data.credits?.crew?.filter(c => c.job === 'Executive Producer' || c.job === 'Creator').map(c => c.name).slice(0, 2).join(', ');
+
+    // Watch providers calculation (prioritize India, then US)
     const watchResults = data['watch/providers']?.results || {};
     const regionCode = watchResults['IN'] ? 'IN' : 'US';
-    const regionLabel = regionCode === 'IN' ? 'India' : 'U.S. (not in India)';
+    const regionLabel = regionCode === 'IN' ? 'India' : 'U.S. (international)';
     const providersRaw = watchResults[regionCode];
+    
     const dedupe = (list) => list
         ? [...new Map(list.map(p => [p.provider_name.replace(/\s+(Standard|Basic|Premium).*/i, '').trim(), p])).values()]
         : [];
-    // Prefer streaming, then rent, then buy — each clickable via TMDB's watch link
+        
     const flatrate = dedupe(providersRaw?.flatrate);
     const rent = dedupe(providersRaw?.rent);
     const buy = dedupe(providersRaw?.buy);
@@ -149,7 +230,7 @@ const DetailModal = ({ show, data, onClose }) => {
     const watchLink = providersRaw?.link;
     const imdbId = data.external_ids?.imdb_id;
 
-    // Calculate live progress for series
+    // Live progress calculation for Series
     const liveSeriesItem = {
         total_seasons: totalSeasons,
         total_episodes: totalEpisodes,
@@ -158,7 +239,6 @@ const DetailModal = ({ show, data, onClose }) => {
         currentEpisode: selectedEpisode
     };
     const progress = !isMovie ? calculateSeriesProgress(liveSeriesItem) : null;
-
     const curSeasonObj = regularSeasons.find(s => s.season_number === selectedSeason);
     const curSeasonMaxEp = curSeasonObj?.episode_count || (regularSeasons.length > 0 ? 0 : Math.ceil(totalEpisodes / totalSeasons));
 
@@ -215,7 +295,6 @@ const DetailModal = ({ show, data, onClose }) => {
         if (selectedEpisode < effectiveMax) {
             handleEpisodeChange(selectedEpisode + 1);
         } else {
-            // Next season if available
             const curIdx = regularSeasons.findIndex(s => s.season_number === selectedSeason);
             if (curIdx >= 0 && curIdx < regularSeasons.length - 1) {
                 const nextSeason = regularSeasons[curIdx + 1];
@@ -230,7 +309,6 @@ const DetailModal = ({ show, data, onClose }) => {
                     });
                 }
             } else {
-                // Last episode of last season -> mark completed
                 const lastSeason = regularSeasons.length > 0 ? regularSeasons[regularSeasons.length - 1] : null;
                 const lastSeasonNum = lastSeason ? lastSeason.season_number : totalSeasons;
                 const lastMax = lastSeason ? (lastSeason.episode_count || 1) : effectiveMax;
@@ -276,7 +354,6 @@ const DetailModal = ({ show, data, onClose }) => {
                 });
             }
         } else {
-            // plan_to_watch
             setSelectedEpisode(0);
             if (isInWatchlist) {
                 updateSeriesProgress(data.id, {
@@ -312,6 +389,36 @@ const DetailModal = ({ show, data, onClose }) => {
         }
     };
 
+    const handleToggleFavorite = () => {
+        if (isInWatchlist) {
+            toggleFavorite(data.id, type);
+        } else {
+            addToWatchlist(data, type, 'plan_to_watch', { favorite: true });
+        }
+    };
+
+    const handleShare = async () => {
+        const title = data.title || data.name;
+        const year = getYear(data);
+        const rating = data.vote_average ? `★ ${data.vote_average.toFixed(1)}/10` : '';
+        const shareText = `Check out "${title}" (${year}) ${rating} on Reelcase!`;
+        
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: `Reelcase | ${title}`,
+                    text: shareText,
+                    url: window.location.href
+                });
+            } else if (navigator.clipboard) {
+                await navigator.clipboard.writeText(`${shareText}\nhttps://www.themoviedb.org/${type}/${data.id}`);
+                notify('Title and link copied to clipboard!', 'info');
+            }
+        } catch {
+            // Ignore cancelled share
+        }
+    };
+
     // Determine active status pill
     let currentActiveStatus = 'plan_to_watch';
     if (watchlistItem?.watched || (progress && progress.percentage === 100)) {
@@ -321,49 +428,141 @@ const DetailModal = ({ show, data, onClose }) => {
     }
 
     const backdropUrl = data.backdrop_path ? getPosterUrl(data.backdrop_path, 'w1280') : null;
+    const title = data.title || data.name;
 
     return (
-        <div id="detailModalOverlay" className="modal-overlay show" onClick={handleBackdropClick}>
+        <div id="detailModalOverlay" className="modal-overlay show" onClick={handleBackdropClick} role="dialog" aria-modal="true">
             <div className="modal-container">
+                {/* Hero Backdrop Banner */}
                 {backdropUrl && (
                     <div className="detail-hero" aria-hidden="true">
                         <img src={backdropUrl} alt="" onError={handleImageError} />
                         <div className="detail-hero-fade" />
                     </div>
                 )}
-                <button className="close-detail-btn" onClick={onClose} aria-label="Close">&times;</button>
+
+                {/* Top Action Buttons (Close, Share, Favorite) */}
+                <div className="detail-top-controls">
+                    <button 
+                        type="button" 
+                        className={`detail-control-btn fav-btn ${isFavorite ? 'active' : ''}`}
+                        onClick={handleToggleFavorite}
+                        title={isFavorite ? "Favorited" : "Add to favorites"}
+                        aria-label="Favorite"
+                    >
+                        <Heart size={18} fill={isFavorite ? "currentColor" : "none"} />
+                    </button>
+                    <button 
+                        type="button" 
+                        className="detail-control-btn share-btn"
+                        onClick={handleShare}
+                        title="Share this title"
+                        aria-label="Share"
+                    >
+                        <Share2 size={18} />
+                    </button>
+                    <button 
+                        type="button" 
+                        className="detail-control-btn close-detail-btn" 
+                        onClick={onClose} 
+                        aria-label="Close modal"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
                 <div className={`detail-content-wrapper${backdropUrl ? ' has-backdrop' : ''}`}>
+                    {/* Left Poster Column */}
                     <div className="detail-poster">
                         <img 
                             src={getPosterUrl(data, 'w500')} 
-                            alt={data.title || data.name || ''} 
+                            alt={title} 
                             loading="lazy"
                             decoding="async"
                             onError={handleImageError}
                         />
                     </div>
+
+                    {/* Right Info Column */}
                     <div className="detail-info">
-                        <h1>{data.title || data.name}</h1>
+                        <div className="detail-header-block">
+                            <h1>{title}</h1>
+                            {data.tagline && <p className="detail-tagline">“{data.tagline}”</p>}
+                        </div>
+
                         <div className="meta">
-                            <span>{getYear(data)}</span>
-                            {isMovie && data.runtime ? <span> &bull; {data.runtime} min</span> : null}
+                            <span className="meta-pill year">{getYear(data) || 'N/A'}</span>
+                            {isMovie && data.runtime ? (
+                                <span className="meta-pill runtime">{data.runtime} min</span>
+                            ) : null}
                             {!isMovie && (
-                                <span>
-                                    {' '}&bull; {totalSeasons} {totalSeasons === 1 ? 'Season' : 'Seasons'}
-                                    {totalEpisodes > 0 ? ` • ${totalEpisodes} Episodes` : ''}
+                                <span className="meta-pill series-count">
+                                    {totalSeasons} {totalSeasons === 1 ? 'Season' : 'Seasons'}
+                                    {totalEpisodes > 0 ? ` &bull; ${totalEpisodes} Eps` : ''}
                                 </span>
                             )}
-                            {data.vote_average ? <span> &bull; ★ {data.vote_average.toFixed(1)}</span> : null}
+                            {data.vote_average ? (
+                                <span className="meta-pill rating">
+                                    <Star size={13} fill="currentColor" /> {data.vote_average.toFixed(1)}
+                                </span>
+                            ) : null}
+                            {data.status && <span className="meta-pill status">{data.status}</span>}
                         </div>
+
+                        {/* Genres */}
+                        {data.genres && data.genres.length > 0 && (
+                            <div className="detail-genres-row">
+                                {data.genres.map(g => (
+                                    <span key={g.id || g.name} className="genre-pill">
+                                        {g.name}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Director / Creator */}
+                        {directors && (
+                            <div className="detail-creators">
+                                <span className="creators-label">{isMovie ? 'Directed by' : 'Created by'}:</span>
+                                <span className="creators-name">{directors}</span>
+                            </div>
+                        )}
+
+                        {/* Watch Trailer Button & Inline Player */}
                         {trailerKey && (
-                            <a
-                                className="trailer-btn"
-                                href={`https://www.youtube.com/watch?v=${trailerKey}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <Play size={15} /> Watch Trailer
-                            </a>
+                            <div className="trailer-section">
+                                {!isPlayingTrailer ? (
+                                    <button 
+                                        type="button" 
+                                        className="trailer-btn" 
+                                        onClick={() => setIsPlayingTrailer(true)}
+                                    >
+                                        <Play size={15} fill="currentColor" /> Watch Trailer
+                                    </button>
+                                ) : (
+                                    <div className="inline-trailer-player">
+                                        <div className="trailer-player-header">
+                                            <span>Official Trailer</span>
+                                            <button 
+                                                type="button" 
+                                                className="close-trailer-btn" 
+                                                onClick={() => setIsPlayingTrailer(false)}
+                                            >
+                                                <X size={15} /> Close Player
+                                            </button>
+                                        </div>
+                                        <div className="trailer-iframe-wrap">
+                                            <iframe
+                                                src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0`}
+                                                title="Official Trailer"
+                                                frameBorder="0"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {/* Interactive Manual Progress Tracker for TV Series */}
@@ -372,22 +571,25 @@ const DetailModal = ({ show, data, onClose }) => {
                                 <div className="modal-progress-header">
                                     <div className="modal-progress-title">
                                         <Tv size={18} />
-                                        <span>Track Your Progress</span>
+                                        <span>Interactive Episode Tracker</span>
                                     </div>
                                     <div className="modal-status-pills">
                                         <button 
+                                            type="button"
                                             className={`status-pill ${currentActiveStatus === 'plan_to_watch' ? 'active' : ''}`}
                                             onClick={() => handleStatusPillClick('plan_to_watch')}
                                         >
                                             Plan to Watch
                                         </button>
                                         <button 
+                                            type="button"
                                             className={`status-pill ${currentActiveStatus === 'watching' ? 'active' : ''}`}
                                             onClick={() => handleStatusPillClick('watching')}
                                         >
                                             Watching
                                         </button>
                                         <button 
+                                            type="button"
                                             className={`status-pill ${currentActiveStatus === 'completed' ? 'active' : ''}`}
                                             onClick={() => handleStatusPillClick('completed')}
                                         >
@@ -399,7 +601,7 @@ const DetailModal = ({ show, data, onClose }) => {
                                 <div className="modal-progress-body">
                                     <div className="modal-selectors-grid">
                                         <div className="modal-selector-box">
-                                            <label>Season</label>
+                                            <label>Current Season</label>
                                             <select 
                                                 value={selectedSeason}
                                                 onChange={(e) => handleSeasonChange(e.target.value)}
@@ -423,10 +625,12 @@ const DetailModal = ({ show, data, onClose }) => {
                                             <label>Watched Episode</label>
                                             <div className="modal-ep-stepper">
                                                 <button 
+                                                    type="button"
                                                     className="modal-stepper-btn minus"
                                                     onClick={handleStepMinus}
                                                     disabled={selectedEpisode <= 0}
                                                     title="Previous Episode"
+                                                    aria-label="Previous episode"
                                                 >
                                                     <Minus size={14} />
                                                 </button>
@@ -441,9 +645,11 @@ const DetailModal = ({ show, data, onClose }) => {
                                                     ))}
                                                 </select>
                                                 <button 
+                                                    type="button"
                                                     className="modal-stepper-btn plus"
                                                     onClick={handleStepPlus}
                                                     title="Next Episode"
+                                                    aria-label="Next episode"
                                                 >
                                                     <Plus size={14} />
                                                 </button>
@@ -470,19 +676,34 @@ const DetailModal = ({ show, data, onClose }) => {
                         )}
 
                         <h2>Synopsis</h2>
-                        <p className="plot">{data.overview || 'Not available.'}</p>
+                        <p className="plot">{data.overview || 'No synopsis provided for this title.'}</p>
                         
-                        <h2>Ratings</h2>
+                        <h2>Ratings & External Links</h2>
                         <div className="ratings">
-                            <span>TMDb: <b>{data.vote_average ? data.vote_average.toFixed(1) : 'N/A'}</b>/10</span>
+                            <span className="rating-tag tmdb">
+                                TMDb: <b>{data.vote_average ? data.vote_average.toFixed(1) : 'N/A'}</b>/10
+                            </span>
                             {imdbId && (
-                                <a href={`https://www.imdb.com/title/${imdbId}`} target="_blank" rel="noopener noreferrer" className="imdb-link">
-                                    IMDb
+                                <a 
+                                    href={`https://www.imdb.com/title/${imdbId}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="imdb-link"
+                                >
+                                    IMDb ↗
                                 </a>
                             )}
+                            <a 
+                                href={`https://www.themoviedb.org/${type}/${data.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="tmdb-link"
+                            >
+                                TMDb Page ↗
+                            </a>
                         </div>
                         
-                        <h2>Where to Watch · {regionLabel}</h2>
+                        <h2>Where to Watch &bull; {regionLabel}</h2>
                         <div className="providers-list">
                             {providerGroups.length > 0 ? (
                                 providerGroups.map(group => (
@@ -497,6 +718,7 @@ const DetailModal = ({ show, data, onClose }) => {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         title={`${p.provider_name} — open streaming options`}
+                                                        className="provider-logo-link"
                                                     >
                                                         <img
                                                             src={getPosterUrl(p.logo_path, 'w200')}
@@ -523,19 +745,31 @@ const DetailModal = ({ show, data, onClose }) => {
                                     </div>
                                 ))
                             ) : (
-                                <p className="subtle">Not available for streaming.</p>
+                                <p className="subtle">Not currently available on major digital/streaming platforms in this region.</p>
                             )}
                         </div>
 
                         {cast.length > 0 && (
                             <>
                                 <div className="cast-header">
-                                    <h2>Top Cast</h2>
+                                    <h2>Top Billed Cast</h2>
                                     <div className="cast-controls">
-                                        <button className="cast-arrow" onClick={() => scrollCastBy(-1)} disabled={!castCanLeft} aria-label="Scroll cast left">
+                                        <button 
+                                            type="button"
+                                            className="cast-arrow" 
+                                            onClick={() => scrollCastBy(-1)} 
+                                            disabled={!castCanLeft} 
+                                            aria-label="Scroll cast left"
+                                        >
                                             <ChevronLeft size={16} />
                                         </button>
-                                        <button className="cast-arrow" onClick={() => scrollCastBy(1)} disabled={!castCanRight} aria-label="Scroll cast right">
+                                        <button 
+                                            type="button"
+                                            className="cast-arrow" 
+                                            onClick={() => scrollCastBy(1)} 
+                                            disabled={!castCanRight} 
+                                            aria-label="Scroll cast right"
+                                        >
                                             <ChevronRight size={16} />
                                         </button>
                                     </div>
@@ -552,9 +786,9 @@ const DetailModal = ({ show, data, onClose }) => {
                                 >
                                     {cast.map(person => (
                                         <a
-                                            key={person.cast_id || person.credit_id}
+                                            key={person.cast_id || person.credit_id || person.id}
                                             className="cast-card"
-                                            title={`${person.name} — search on Google`}
+                                            title={`${person.name} — search actor`}
                                             href={`https://www.google.com/search?q=${encodeURIComponent(person.name + ' actor')}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -577,39 +811,41 @@ const DetailModal = ({ show, data, onClose }) => {
                     </div>
                 </div>
                     
-                    <div className="add-btn-container">
-                        {!isInWatchlist ? (
-                            <div className="detail-add-actions">
-                                <button 
-                                    className="add-to-list-btn" 
-                                    onClick={handleAddWithProgress}
-                                >
-                                    <Plus size={16} /> Add to Watchlist
-                                </button>
-                                <button 
-                                    className="add-to-list-btn already-watched-btn" 
-                                    onClick={handleAlreadyWatched}
-                                >
-                                    <CheckCircle2 size={16} /> Already Watched
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="detail-in-watchlist-status">
-                                <p className="success-text">
-                                    <Check size={18} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
-                                    {watchlistItem.watched ? 'Marked as Watched' : 'In Watchlist'}
-                                </p>
-                                <button 
-                                    type="button" 
-                                    className="detail-remove-btn"
-                                    onClick={handleRemoveFromWatchlist}
-                                >
-                                    <Trash2 size={15} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
-                                    Remove from Watchlist
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                <div className="add-btn-container">
+                    {!isInWatchlist ? (
+                        <div className="detail-add-actions">
+                            <button 
+                                type="button"
+                                className="add-to-list-btn" 
+                                onClick={handleAddWithProgress}
+                            >
+                                <Plus size={16} /> Add to Reelcase
+                            </button>
+                            <button 
+                                type="button"
+                                className="add-to-list-btn already-watched-btn" 
+                                onClick={handleAlreadyWatched}
+                            >
+                                <CheckCircle2 size={16} /> Already Watched
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="detail-in-watchlist-status">
+                            <p className="success-text">
+                                <Check size={18} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
+                                {watchlistItem.watched ? 'Marked as Completed / Watched' : 'In Your Reelcase Library'}
+                            </p>
+                            <button 
+                                type="button" 
+                                className="detail-remove-btn"
+                                onClick={handleRemoveFromWatchlist}
+                            >
+                                <Trash2 size={15} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '6px' }} />
+                                Remove from Reelcase
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

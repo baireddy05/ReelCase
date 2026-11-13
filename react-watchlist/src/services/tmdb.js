@@ -116,18 +116,30 @@ export const tmdb = {
         if (data?.results) setCache(cacheKey, data);
         return data;
     },
+
+    async topRated(mediaType = 'movie') {
+        const endpointType = mediaType === 'series' || mediaType === 'tv' ? 'tv' : 'movie';
+        const cacheKey = `top-rated-${endpointType}`;
+        if (cache.has(cacheKey)) return cache.get(cacheKey);
+        const data = await this.fetch(`/${endpointType}/top_rated`);
+        if (data?.results) setCache(cacheKey, data);
+        return data;
+    },
     
     async getDetails(id, type) {
-        const endpointType = type === 'series' ? 'tv' : type;
+        const endpointType = type === 'series' || type === 'tv' ? 'tv' : 'movie';
         const cacheKey = `${endpointType}-${id}`;
         
         if (cache.has(cacheKey)) {
             return cache.get(cacheKey);
         }
         
-        const data = await this.fetch(`/${endpointType}/${id}`, `append_to_response=watch/providers,external_ids`);
+        // Single call fetches details, watch providers, external IDs, cast & crew credits, and trailers
+        const data = await this.fetch(`/${endpointType}/${id}`, `append_to_response=watch/providers,external_ids,videos,credits`);
         if (data) {
             setCache(cacheKey, data);
+            if (data.credits) setCache(`credits-${endpointType}-${id}`, data.credits);
+            if (data.videos) setCache(`videos-${endpointType}-${id}`, data.videos);
         }
         return data;
     },

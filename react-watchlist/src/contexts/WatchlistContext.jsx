@@ -1,63 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { db, doc, onSnapshot, setDoc } from '../services/firebase';
-import { notify } from '../components/Toaster';
+import { notify } from '../utils/notifications';
 
 const WatchlistContext = createContext();
 
 export const useWatchlist = () => useContext(WatchlistContext);
-
-// Utility to calculate series progress metrics
-export const calculateSeriesProgress = (item) => {
-    if (!item) return { watchedCount: 0, totalCount: 0, percentage: 0, currentSeason: 1, currentEpisode: 0, totalSeasons: 1, seasonEpisodeCount: 0 };
-    
-    const totalSeasons = item.total_seasons || (item.seasons_detail?.length) || 1;
-    const seasonsDetail = item.seasons_detail || [];
-    
-    // Total episodes in regular seasons
-    let totalCount = item.total_episodes || 0;
-    if (totalCount === 0 && seasonsDetail.length > 0) {
-        totalCount = seasonsDetail.reduce((acc, s) => acc + (s.episode_count || 0), 0);
-    }
-    if (totalCount === 0) totalCount = 1; // Avoid division by 0
-
-    const currentSeason = item.currentSeason || 1;
-    const currentEpisode = item.currentEpisode || 0;
-
-    // Current season's episode count
-    const curSeasonObj = seasonsDetail.find(s => s.season_number === currentSeason);
-    const seasonEpisodeCount = curSeasonObj?.episode_count || (seasonsDetail.length > 0 ? 0 : Math.ceil(totalCount / totalSeasons));
-
-    // Calculate total episodes watched across all seasons
-    let watchedCount = 0;
-    if (item.watched || item.status === 'completed') {
-        watchedCount = totalCount;
-    } else if (seasonsDetail.length > 0) {
-        for (const s of seasonsDetail) {
-            if (s.season_number < currentSeason) {
-                watchedCount += (s.episode_count || 0);
-            } else if (s.season_number === currentSeason) {
-                watchedCount += Math.min(currentEpisode, s.episode_count || currentEpisode);
-            }
-        }
-    } else {
-        // Approximate calculation if seasonsDetail not yet populated
-        const avgPerSeason = totalCount / totalSeasons;
-        watchedCount = Math.min(totalCount, Math.round(((currentSeason - 1) * avgPerSeason) + currentEpisode));
-    }
-
-    const percentage = Math.min(100, Math.max(0, Math.round((watchedCount / totalCount) * 100)));
-
-    return {
-        watchedCount,
-        totalCount,
-        percentage,
-        currentSeason,
-        currentEpisode,
-        totalSeasons,
-        seasonEpisodeCount
-    };
-};
 
 const normalizeItem = (item) => {
     if (!item) return item;
@@ -69,7 +17,8 @@ const normalizeItem = (item) => {
         poster: posterVal,
         release_date: yearVal,
         first_air_date: yearVal,
-        year: yearVal
+        year: yearVal,
+        favorite: Boolean(item.favorite)
     };
 };
 
@@ -115,7 +64,7 @@ export const WatchlistProvider = ({ children }) => {
         return unsubscribe;
     }, [user]);
 
-    const saveWatchlistData = async (updatedList) => {
+    const saveWatchlistData = useCallback(async (updatedList) => {
         if (!user) return;
         try {
             await setDoc(doc(db, "watchlists", user.uid), updatedList);
@@ -124,35 +73,52 @@ export const WatchlistProvider = ({ children }) => {
             localStorage.setItem('offline_watchlist', JSON.stringify(updatedList));
             setWatchlist(updatedList);
         }
-    };
+    }, [user]);
 
-    const requestDelete = (item, type) => {
+    const requestDelete = useCallback((item, type) => {
         if (!item) return;
         setDeleteModalState({
             show: true,
             item,
             type: type || (item.total_seasons !== undefined ? 'series' : 'movie')
         });
-    };
+    }, []);
 
-    const cancelDelete = () => {
+    const cancelDelete = useCallback(() => {
         setDeleteModalState({ show: false, item: null, type: null });
-    };
+    }, []);
 
-    const confirmDelete = async () => {
+    const removeFromWatchlist = useCallback(async (id, type) => {
+        if (!user) return;
+        const listType = type === 'movie' ? 'movies' : 'series';
+        const removed = watchlist[listType].find(i => i.id === id);
+        
+        const updatedList = {
+            ...watchlist,
+            [listType]: watchlist[listType].filter(i => i.id !== id)
+        };
+
+        setWatchlist(updatedList);
+        await saveWatchlistData(updatedList);
+        notify(`Removed “${removed?.title || 'title'}” from library`, 'info');
+    }, [user, watchlist, saveWatchlistData]);
+
+    const confirmDelete = useCallback(async () => {
         const toDelete = { ...deleteModalState };
-        // Immediately dismiss the modal with zero delay (Optimistic UI)
         setDeleteModalState({ show: false, item: null, type: null });
         if (toDelete.item && toDelete.type) {
             await removeFromWatchlist(toDelete.item.id, toDelete.type);
         }
-    };
+    }, [deleteModalState, removeFromWatchlist]);
 
-    const addToWatchlist = async (item, type, initialStatus = 'plan_to_watch', customData = {}) => {
+    const addToWatchlist = useCallback(async (item, type, initialStatus = 'plan_to_watch', customData = {}) => {
         if (!user) return false;
         
         const listType = type === 'movie' ? 'movies' : 'series';
-        if (watchlist[listType].some(i => i.id === item.id)) return true;
+        if (watchlist[listType].some(i => i.id === item.id)) {
+            notify(`“${item.title || item.name}” is already in your library`, 'info');
+            return true;
+        }
 
         let newItem;
         const isCompleted = initialStatus === 'completed' || initialStatus === 'watched';
@@ -168,6 +134,10 @@ export const WatchlistProvider = ({ children }) => {
                 release_date: dateVal,
                 first_air_date: dateVal,
                 year: dateVal,
+                vote_average: item.vote_average || null,
+                runtime: item.runtime || null,
+                overview: item.overview || '',
+                favorite: Boolean(customData.favorite),
                 watched: isCompleted
             };
         } else {
@@ -178,7 +148,7 @@ export const WatchlistProvider = ({ children }) => {
                     episode_count: s.episode_count || 0,
                     name: s.name || `Season ${s.season_number}`
                 }))
-                : [];
+                : (item.seasons_detail || []);
             
             const totalSeasons = item.number_of_seasons || regularSeasons.length || 1;
             const totalEpisodes = item.number_of_episodes || regularSeasons.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
@@ -212,12 +182,15 @@ export const WatchlistProvider = ({ children }) => {
                 release_date: dateVal,
                 first_air_date: dateVal,
                 year: dateVal,
+                vote_average: item.vote_average || null,
+                overview: item.overview || '',
                 total_seasons: totalSeasons,
                 total_episodes: totalEpisodes,
                 seasons_detail: regularSeasons,
                 currentSeason: seasonToUse,
                 currentEpisode: episodeToUse,
-                status: statusToUse, // 'watching' | 'plan_to_watch' | 'completed'
+                status: statusToUse,
+                favorite: Boolean(customData.favorite),
                 watched: isCompleted
             };
         }
@@ -229,26 +202,11 @@ export const WatchlistProvider = ({ children }) => {
 
         setWatchlist(updatedList);
         await saveWatchlistData(updatedList);
-        notify(`Added “${newItem.title || 'title'}” to Reelcase`);
+        notify(`Added “${newItem.title || 'title'}” to Reelcase`, 'success');
         return true;
-    };
+    }, [user, watchlist, saveWatchlistData]);
 
-    const removeFromWatchlist = async (id, type) => {
-        if (!user) return;
-        const listType = type === 'movie' ? 'movies' : 'series';
-        const removed = watchlist[listType].find(i => i.id === id);
-        
-        const updatedList = {
-            ...watchlist,
-            [listType]: watchlist[listType].filter(i => i.id !== id)
-        };
-
-        setWatchlist(updatedList);
-        await saveWatchlistData(updatedList);
-        notify(`Removed “${removed?.title || 'title'}” from Reelcase`);
-    };
-
-    const toggleWatched = async (id, type) => {
+    const toggleWatched = useCallback(async (id, type) => {
         if (!user) return;
         const listType = type === 'movie' ? 'movies' : 'series';
         
@@ -258,11 +216,13 @@ export const WatchlistProvider = ({ children }) => {
                 if (i.id !== id) return i;
                 
                 if (type === 'movie') {
-                    return { ...i, watched: !i.watched };
+                    const nextWatched = !i.watched;
+                    notify(nextWatched ? `Marked “${i.title}” as watched` : `Marked “${i.title}” as unwatched`, 'info');
+                    return { ...i, watched: nextWatched };
                 } else {
-                    // Series toggle
                     const willBeWatched = !i.watched;
                     if (!willBeWatched) {
+                        notify(`Moved “${i.title}” back to Plan to Watch`, 'info');
                         return {
                             ...i,
                             watched: false,
@@ -274,6 +234,7 @@ export const WatchlistProvider = ({ children }) => {
                     const lastSeason = seasons.length > 0 ? seasons[seasons.length - 1] : null;
                     const lastSeasonNum = lastSeason ? lastSeason.season_number : (i.total_seasons || i.currentSeason || 1);
                     const lastEpCount = lastSeason ? (lastSeason.episode_count || 1) : (i.total_episodes || 1);
+                    notify(`Marked all of “${i.title}” as completed!`, 'success');
                     return {
                         ...i,
                         watched: true,
@@ -287,9 +248,28 @@ export const WatchlistProvider = ({ children }) => {
 
         setWatchlist(updatedList);
         await saveWatchlistData(updatedList);
-    };
+    }, [user, watchlist, saveWatchlistData]);
 
-    const updateSeriesProgress = async (id, updates) => {
+    const toggleFavorite = useCallback(async (id, type) => {
+        if (!user) return;
+        const listType = type === 'movie' ? 'movies' : 'series';
+        
+        let isFavNow = false;
+        const updatedList = {
+            ...watchlist,
+            [listType]: watchlist[listType].map(i => {
+                if (i.id !== id) return i;
+                isFavNow = !i.favorite;
+                return { ...i, favorite: isFavNow };
+            })
+        };
+
+        setWatchlist(updatedList);
+        await saveWatchlistData(updatedList);
+        notify(isFavNow ? 'Added to favorites' : 'Removed from favorites', 'info');
+    }, [user, watchlist, saveWatchlistData]);
+
+    const updateSeriesProgress = useCallback(async (id, updates) => {
         if (!user) return;
 
         const updatedList = {
@@ -299,7 +279,6 @@ export const WatchlistProvider = ({ children }) => {
 
                 const merged = { ...s, ...updates };
                 
-                // Determine status and watched state
                 if (updates.status) {
                     merged.status = updates.status;
                     merged.watched = updates.status === 'completed';
@@ -307,7 +286,6 @@ export const WatchlistProvider = ({ children }) => {
                     merged.watched = updates.watched;
                     merged.status = updates.watched ? 'completed' : (merged.currentEpisode > 0 ? 'watching' : 'plan_to_watch');
                 } else if (merged.currentEpisode > 0) {
-                    // If episode > 0 and not marked completed
                     if (merged.status !== 'completed') {
                         merged.status = 'watching';
                         merged.watched = false;
@@ -323,9 +301,9 @@ export const WatchlistProvider = ({ children }) => {
 
         setWatchlist(updatedList);
         await saveWatchlistData(updatedList);
-    };
+    }, [user, watchlist, saveWatchlistData]);
 
-    const incrementEpisode = async (id) => {
+    const incrementEpisode = useCallback(async (id) => {
         if (!user) return;
         const seriesItem = watchlist.series.find(s => s.id === id);
         if (!seriesItem) return;
@@ -343,8 +321,8 @@ export const WatchlistProvider = ({ children }) => {
                 status: 'watching',
                 watched: false
             });
+            notify(`Watched S${curSeason} E${curEp + 1}`, 'info');
         } else {
-            // End of current season -> move to next season if exists
             const nextSeasonNumber = curSeason + 1;
             const hasMoreSeasons = seasons.some(s => s.season_number === nextSeasonNumber) || 
                                    (seriesItem.total_seasons && nextSeasonNumber <= seriesItem.total_seasons);
@@ -356,19 +334,20 @@ export const WatchlistProvider = ({ children }) => {
                     status: 'watching',
                     watched: false
                 });
+                notify(`Started Season ${nextSeasonNumber}!`, 'info');
             } else {
-                // Reached end of entire series!
                 await updateSeriesProgress(id, {
                     currentSeason: curSeason,
                     currentEpisode: curSeasonMaxEp,
                     status: 'completed',
                     watched: true
                 });
+                notify(`Completed “${seriesItem.title}”! 🎉`, 'success');
             }
         }
-    };
+    }, [user, watchlist, updateSeriesProgress]);
 
-    const decrementEpisode = async (id) => {
+    const decrementEpisode = useCallback(async (id) => {
         if (!user) return;
         const seriesItem = watchlist.series.find(s => s.id === id);
         if (!seriesItem) return;
@@ -396,7 +375,6 @@ export const WatchlistProvider = ({ children }) => {
                     watched: false
                 });
             } else {
-                // S1 E1 decremented -> 0 watched, back to plan to watch
                 await updateSeriesProgress(id, {
                     currentSeason: 1,
                     currentEpisode: 0,
@@ -405,20 +383,57 @@ export const WatchlistProvider = ({ children }) => {
                 });
             }
         }
-    };
+    }, [user, watchlist, updateSeriesProgress]);
+
+    const importWatchlist = useCallback(async (importedData) => {
+        if (!user) return false;
+        try {
+            if (!importedData || (!Array.isArray(importedData.movies) && !Array.isArray(importedData.series))) {
+                throw new Error("Invalid library backup file format.");
+            }
+
+            const mergedMoviesMap = new Map();
+            watchlist.movies.forEach(m => mergedMoviesMap.set(m.id, m));
+            (importedData.movies || []).forEach(m => {
+                if (m && m.id) mergedMoviesMap.set(m.id, normalizeItem(m));
+            });
+
+            const mergedSeriesMap = new Map();
+            watchlist.series.forEach(s => mergedSeriesMap.set(s.id, s));
+            (importedData.series || []).forEach(s => {
+                if (s && s.id) mergedSeriesMap.set(s.id, normalizeItem(s));
+            });
+
+            const updatedList = {
+                movies: Array.from(mergedMoviesMap.values()),
+                series: Array.from(mergedSeriesMap.values())
+            };
+
+            setWatchlist(updatedList);
+            await saveWatchlistData(updatedList);
+            notify(`Restored ${updatedList.movies.length} movies & ${updatedList.series.length} series!`, 'success');
+            return true;
+        } catch (err) {
+            console.error("Import error:", err);
+            notify(err.message || "Failed to import library", 'error');
+            return false;
+        }
+    }, [user, watchlist, saveWatchlistData]);
 
     const value = {
         watchlist,
         addToWatchlist,
         removeFromWatchlist,
         toggleWatched,
+        toggleFavorite,
         updateSeriesProgress,
         incrementEpisode,
         decrementEpisode,
         deleteModalState,
         requestDelete,
         cancelDelete,
-        confirmDelete
+        confirmDelete,
+        importWatchlist
     };
 
     return (
@@ -427,4 +442,3 @@ export const WatchlistProvider = ({ children }) => {
         </WatchlistContext.Provider>
     );
 };
-
