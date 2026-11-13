@@ -10,6 +10,12 @@ const SeriesProgressCard = memo(({ item, onClick }) => {
     const [selectedSeason, setSelectedSeason] = useState(item.currentSeason || 1);
     const [selectedEpisode, setSelectedEpisode] = useState(item.currentEpisode ?? 0);
 
+    const handleMouseEnter = () => {
+        if (item?.id) {
+            tmdb.getDetails(item.id, 'series');
+        }
+    };
+
     // Auto-fetch missing TMDb metadata for legacy series items without violating hook rules
     const itemId = item.id;
     const hasMetadata = Boolean(item.total_episodes && item.seasons_detail?.length);
